@@ -16,6 +16,11 @@ namespace RepairAndMaintenanceApp.ServiceLayer
             return ParticularMasterDataAccess.GetActiveCategories();
         }
 
+        public static List<string> GetNamesByCategory(string categoryName)
+        {
+            return ParticularMasterDataAccess.GetNamesByCategory(categoryName);
+        }
+
         public static void Add(ParticularMaster particular)
         {
             ParticularMasterDataAccess.Add(particular);

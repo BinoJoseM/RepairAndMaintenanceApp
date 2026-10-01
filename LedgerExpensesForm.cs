@@ -210,10 +210,25 @@ namespace RepairAndMaintenanceApp
                 BackColor = Color.White,
                 Font = new Font("Segoe UI", 9F)
             };
-            var particularsBox = CreateEditorTextBox(235, 56, 205);
+            var particularsBox = CreateEditorDropDown(235, 56, 205);
             var amountBox = CreateEditorTextBox(536, 56, 115);
 
             var categoryBox = CreateDropDown(675, 55, 190, SqliteDataAccess.GetCategoryNames("Expense").ToArray());
+
+            void LoadParticularOptions(string? selectedParticular = null)
+            {
+                var category = categoryBox.SelectedItem?.ToString();
+                particularsBox.Items.Clear();
+                if (!string.IsNullOrWhiteSpace(category))
+                {
+                    particularsBox.Items.AddRange(ParticularMasterService.GetNamesByCategory(category).Cast<object>().ToArray());
+                }
+
+                particularsBox.SelectedItem = selectedParticular;
+            }
+
+            categoryBox.SelectedIndexChanged += (_, _) => LoadParticularOptions();
+            LoadParticularOptions();
 
             AddEditorLabel(editorPanel, "Date", 14, 35);
             AddEditorLabel(editorPanel, "Particulars", 235, 35);
@@ -250,15 +265,15 @@ namespace RepairAndMaintenanceApp
                 }
 
                 categoryBox.SelectedItem = selectedEntry.Category;
-                particularsBox.Text = selectedEntry.Particulars;
+                LoadParticularOptions(selectedEntry.Particulars);
                 amountBox.Text = selectedEntry.Amount.ToString("C2", CultureInfo.GetCultureInfo("en-US"));
             }
 
             bool TryValidateEditor()
             {
-                if (string.IsNullOrWhiteSpace(particularsBox.Text) || string.IsNullOrWhiteSpace(amountBox.Text))
+                if (categoryBox.SelectedIndex < 0 || particularsBox.SelectedIndex < 0 || string.IsNullOrWhiteSpace(amountBox.Text))
                 {
-                    MessageBox.Show("Enter the date, particulars, and amount.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Select a category and particular, then enter the amount.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
@@ -277,7 +292,7 @@ namespace RepairAndMaintenanceApp
                 grid.ClearSelection();
                 dateBox.Value = DateTime.Today;
                 categoryBox.SelectedIndex = 0;
-                particularsBox.Clear();
+                particularsBox.SelectedIndex = -1;
                 amountBox.Clear();
                 particularsBox.Focus();
             };
@@ -294,7 +309,7 @@ namespace RepairAndMaintenanceApp
                 {
                     EntryDate = dateBox.Value,
                     Category = categoryBox.Text,
-                    Particulars = particularsBox.Text.Trim(),
+                    Particulars = particularsBox.SelectedItem?.ToString() ?? string.Empty,
                     Amount = amount,
                     SourceFile = "Manual Entry",
                     SourceCell = "Manual"
@@ -330,7 +345,7 @@ namespace RepairAndMaintenanceApp
                     Id = selectedEntry.Id,
                     EntryDate = dateBox.Value,
                     Category = categoryBox.Text,
-                    Particulars = particularsBox.Text.Trim(),
+                    Particulars = particularsBox.SelectedItem?.ToString() ?? string.Empty,
                     Amount = amount,
                     SourceFile = selectedEntry.SourceFile,
                     SourceCell = selectedEntry.SourceCell
@@ -427,7 +442,7 @@ namespace RepairAndMaintenanceApp
 
             dateBox.Value = DateTime.Today;
             categoryBox.SelectedIndex = 0;
-            particularsBox.Clear();
+            particularsBox.SelectedIndex = -1;
             amountBox.Clear();
         }
 
@@ -440,6 +455,19 @@ namespace RepairAndMaintenanceApp
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(42, 50, 59),
                 BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9F)
+            };
+        }
+
+        private static ComboBox CreateEditorDropDown(int x, int y, int width)
+        {
+            return new ComboBox
+            {
+                Location = new Point(x, y),
+                Width = width,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(42, 50, 59),
                 Font = new Font("Segoe UI", 9F)
             };
         }
