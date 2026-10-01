@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="FormTitle" xml:space="preserve">
+    <value>Main Form</value>
+  </data>
+  <data name="ButtonSubmit" xml:space="preserve">
+    <value>Submit</value>
+  </data>
+  <data name="LabelGreeting" xml:space="preserve">
+    <value>Welcome to My WinForms App!</value>
+  </data>
+</root>
