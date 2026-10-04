@@ -37,15 +37,16 @@ namespace RepairAndMaintenanceApp
                 ColumnCount = 3,
                 RowCount = 1
             };
-            headerContent.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180F));
+            headerContent.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 520F));
             headerContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             headerContent.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260F));
 
             var brand = new Label
             {
-                Text = "Purple",
+                Text = "Repair & Maintenance App",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 24F, FontStyle.Bold),
+                UseMnemonic = false,
                 AutoSize = true,
                 Anchor = AnchorStyles.Left,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -336,8 +337,8 @@ namespace RepairAndMaintenanceApp
             statsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             statsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-            var incomeVsExpenses = CreateMetricCard("Income vs. Expenses", "$14,130.00", "$4,990.00", "Income", "Expenses", Color.FromArgb(68, 101, 128), Color.FromArgb(207, 183, 122), true);
-            var payables = CreateMetricCard("Total Payables", "$2345.00", "$1243.00", "Current", "overdue", Color.FromArgb(54, 107, 125), Color.FromArgb(207, 183, 122), false);
+            var incomeVsExpenses = CreateMetricCard("Income vs. Expenses", "₹14,130.00", "₹4,990.00", "Income", "Expenses", Color.FromArgb(68, 101, 128), Color.FromArgb(207, 183, 122), true);
+            var payables = CreateMetricCard("Total Payables", "₹2345.00", "₹1243.00", "Current", "overdue", Color.FromArgb(54, 107, 125), Color.FromArgb(207, 183, 122), false);
             statsLayout.Controls.Add(incomeVsExpenses, 0, 0);
             statsLayout.Controls.Add(payables, 1, 0);
 
@@ -355,14 +356,14 @@ namespace RepairAndMaintenanceApp
             bottomRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
             var expenseCard = CreateSmallLedgerCard(
-                "$4,990.00",
+                "₹4,990.00",
                 "Expense Breakdown",
                 Color.FromArgb(170, 80, 72),
                 "↘",
                 Color.FromArgb(250, 236, 234),
                 Color.FromArgb(214, 123, 112));
             var budgetCard = CreateSmallLedgerCard(
-                "$23,361.00",
+                "₹23,361.00",
                 "Budget",
                 Color.FromArgb(220, 199, 130),
                 "◌",
@@ -728,9 +729,9 @@ namespace RepairAndMaintenanceApp
             var metrics = new[]
             {
                 new { Label = "Entries", Value = "5" },
-                new { Label = "Debits", Value = "$8,550.00" },
-                new { Label = "Credits", Value = "$3,550.00" },
-                new { Label = "Difference", Value = "$5,000.00" }
+                new { Label = "Debits", Value = "₹8,550.00" },
+                new { Label = "Credits", Value = "₹3,550.00" },
+                new { Label = "Difference", Value = "₹5,000.00" }
             };
 
             for (var i = 0; i < metrics.Length; i++)

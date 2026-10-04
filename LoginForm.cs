@@ -13,7 +13,7 @@ namespace RepairAndMaintenanceApp
 
         public LoginForm()
         {
-            Text = "Accounting Sign In";
+            Text = "Repair & Maintenance App - Sign In";
             Width = 520;
             Height = 360;
             StartPosition = FormStartPosition.CenterScreen;
@@ -39,7 +39,7 @@ namespace RepairAndMaintenanceApp
 
             var headerTitle = new Label
             {
-                Text = "Accounting Workspace",
+                Text = "Repair & Maintenance App",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 16F, FontStyle.Bold),
                 AutoSize = true,
@@ -49,12 +49,14 @@ namespace RepairAndMaintenanceApp
             var closeButton = new Button
             {
                 Text = "×",
-                Size = new Size(28, 28),
-                Location = new Point(468, 18),
+                Size = new Size(36, 36),
+                Location = new Point(header.ClientSize.Width - 52, (header.Height - 36) / 2),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(79, 100, 135),
-                Font = new Font("Segoe UI", 15F, FontStyle.Bold)
+                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter
             };
             closeButton.FlatAppearance.BorderSize = 0;
             closeButton.Click += (_, _) => Close();
