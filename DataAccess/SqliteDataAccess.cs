@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Xml;
 using Microsoft.Data.Sqlite;
 
@@ -213,6 +214,7 @@ namespace RepairAndMaintenanceApp.DataAccess
                 CREATE TABLE IF NOT EXISTS BalanceSheetItems (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     StatementTitle TEXT NOT NULL,
+                    EntryDate TEXT NULL,
                     Particulars TEXT NOT NULL,
                     Debit REAL NOT NULL DEFAULT 0,
                     Credit REAL NOT NULL DEFAULT 0,
@@ -317,6 +319,7 @@ namespace RepairAndMaintenanceApp.DataAccess
             EnsureLegacyLedgerParticulars(connection, transaction, "IncomeLedgerEntries");
             MigrateLedgerParticularColumn(connection, transaction, "ExpenseLedgerEntries");
             MigrateLedgerParticularColumn(connection, transaction, "IncomeLedgerEntries");
+            EnsureBalanceSheetEntryDateColumn(connection, transaction);
 
             if (TableExists(connection, transaction, "Categories"))
             {
@@ -327,6 +330,71 @@ namespace RepairAndMaintenanceApp.DataAccess
             }
 
             transaction.Commit();
+        }
+
+        private static void EnsureBalanceSheetEntryDateColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "BalanceSheetItems"))
+            {
+                return;
+            }
+
+            if (!HasColumn(connection, transaction, "BalanceSheetItems", "EntryDate"))
+            {
+                using var addColumn = connection.CreateCommand();
+                addColumn.Transaction = transaction;
+                addColumn.CommandText = "ALTER TABLE BalanceSheetItems ADD COLUMN EntryDate TEXT NULL";
+                addColumn.ExecuteNonQuery();
+            }
+
+            var rowsToBackfill = new List<(long Id, string StatementTitle)>();
+            using (var select = connection.CreateCommand())
+            {
+                select.Transaction = transaction;
+                select.CommandText = "SELECT Id, StatementTitle FROM BalanceSheetItems WHERE EntryDate IS NULL";
+                using var reader = select.ExecuteReader();
+                while (reader.Read())
+                {
+                    rowsToBackfill.Add((reader.GetInt64(0), reader.IsDBNull(1) ? string.Empty : reader.GetString(1)));
+                }
+            }
+
+            foreach (var row in rowsToBackfill)
+            {
+                var entryDate = ParseStatementDate(row.StatementTitle);
+                if (!entryDate.HasValue)
+                {
+                    continue;
+                }
+
+                using var update = connection.CreateCommand();
+                update.Transaction = transaction;
+                update.CommandText = "UPDATE BalanceSheetItems SET EntryDate = @entryDate WHERE Id = @id";
+                update.Parameters.AddWithValue("@entryDate", entryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                update.Parameters.AddWithValue("@id", row.Id);
+                update.ExecuteNonQuery();
+            }
+        }
+
+        private static DateTime? ParseStatementDate(string statementTitle)
+        {
+            if (DateTime.TryParse(statementTitle, CultureInfo.GetCultureInfo("en-GB"), DateTimeStyles.None, out var date)
+                || DateTime.TryParse(statementTitle, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+            {
+                return date;
+            }
+
+            var datePattern = @"\b(?:\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|[A-Za-z]{3,9}\s+\d{4})\b";
+            foreach (Match match in Regex.Matches(statementTitle, datePattern))
+            {
+                if (DateTime.TryParse(match.Value, CultureInfo.GetCultureInfo("en-GB"), DateTimeStyles.None, out date)
+                    || DateTime.TryParse(match.Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+                {
+                    return date;
+                }
+            }
+
+            return null;
         }
 
         private static void EnsureLegacyLedgerCategories(SqliteConnection connection, SqliteTransaction transaction, string tableName, string categoryType)
@@ -986,10 +1054,11 @@ namespace RepairAndMaintenanceApp.DataAccess
                 using var insert = connection.CreateCommand();
                 insert.Transaction = transaction;
                 insert.CommandText = @"
-                    INSERT INTO BalanceSheetItems (StatementTitle, Particulars, Debit, Credit, LineType, SourceFile, SourceRow)
-                    VALUES (@statementTitle, @particulars, @debit, @credit, @lineType, @sourceFile, @sourceRow)
+                    INSERT INTO BalanceSheetItems (StatementTitle, EntryDate, Particulars, Debit, Credit, LineType, SourceFile, SourceRow)
+                    VALUES (@statementTitle, @entryDate, @particulars, @debit, @credit, @lineType, @sourceFile, @sourceRow)
                 ";
                 insert.Parameters.AddWithValue("@statementTitle", balanceSheetTitle);
+                insert.Parameters.AddWithValue("@entryDate", (object?)ParseStatementDate(balanceSheetTitle)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@particulars", particulars);
                 insert.Parameters.AddWithValue("@debit", Amount("BS", $"B{row}"));
                 insert.Parameters.AddWithValue("@credit", Amount("BS", $"C{row}"));

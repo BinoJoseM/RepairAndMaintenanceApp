@@ -79,10 +79,8 @@ k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-win
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.csproj.CoreCompileInputs.cache
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\RepairAn.2638E51A.Up2Date
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.dll
-k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\refint\RepairAndMaintenanceApp.dll
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.pdb
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.genruntimeconfig.cache
-K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\ref\RepairAndMaintenanceApp.dll
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.sourcelink.json
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\bin\Debug\net8.0-windows\RepairAndMaintenanceApp.exe
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build\RepairMaintenanceAccounting.db
@@ -97,3 +95,5 @@ C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndM
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndMaintenanceApp.runtimeconfig.json
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndMaintenanceApp.dll
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndMaintenanceApp.pdb
+k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\refint\RepairAndMaintenanceApp.dll
+K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\ref\RepairAndMaintenanceApp.dll

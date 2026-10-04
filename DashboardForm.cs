@@ -1,7 +1,10 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
+using RepairAndMaintenanceApp.DataLayer;
 
 namespace RepairAndMaintenanceApp
 {
@@ -105,44 +108,30 @@ namespace RepairAndMaintenanceApp
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
                 AutoSize = true,
-                Padding = new Padding(0, 13, 0, 10),
+                Padding = new Padding(0, 16, 0, 12),
                 Anchor = AnchorStyles.Right
             };
 
-            var avatar = new Panel
+            var logoutButton = new Button
             {
-                Width = 30,
-                Height = 30,
-                BackColor = Color.FromArgb(245, 210, 198),
-                BorderStyle = BorderStyle.None,
-                Margin = new Padding(5, 0, 10, 0)
-            };
-            var avatarInner = new Panel
-            {
-                Width = 14,
-                Height = 14,
-                BackColor = Color.FromArgb(105, 58, 47),
-                Location = new Point(8, 7)
-            };
-            avatar.Controls.Add(avatarInner);
-            userArea.Controls.Add(avatar);
-
-            var userName = new Label
-            {
-                Text = "Sara Reley",
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 12F),
+                Text = "⇥  Log out",
                 AutoSize = true,
-                Padding = new Padding(0, 4, 10, 0)
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(79, 100, 135),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Padding = new Padding(10, 5, 10, 5),
+                Margin = Padding.Empty,
+                Cursor = Cursors.Hand
             };
-            userArea.Controls.Add(userName);
-
-            var smallIcon1 = new Label { Text = "◌", ForeColor = Color.White, Font = new Font("Segoe UI", 16F), AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
-            var smallIcon2 = new Label { Text = "◍", ForeColor = Color.White, Font = new Font("Segoe UI", 16F), AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
-            var smallIcon3 = new Label { Text = "☰", ForeColor = Color.White, Font = new Font("Segoe UI", 16F), AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
-            userArea.Controls.Add(smallIcon3);
-            userArea.Controls.Add(smallIcon2);
-            userArea.Controls.Add(smallIcon1);
+            logoutButton.FlatAppearance.BorderSize = 0;
+            logoutButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(68, 85, 120);
+            logoutButton.Click += (_, _) =>
+            {
+                new LoginForm().Show();
+                Close();
+            };
+            userArea.Controls.Add(logoutButton);
 
             headerContent.Controls.Add(userArea, 2, 0);
             header.Controls.Add(headerContent);
@@ -170,7 +159,6 @@ namespace RepairAndMaintenanceApp
             {
                 new { Text = "Home", FormType = typeof(DashboardForm) },
                 new { Text = "Journal", FormType = typeof(JournalForm) },
-                new { Text = "Bank Reconciliation", FormType = typeof(BankReconciliationStatementForm) },
                 new { Text = "Expenses", FormType = typeof(LedgerExpensesForm) },
                 new { Text = "Income", FormType = typeof(LedgerIncomeForm) },
                 new { Text = "Categories", FormType = typeof(CategoryMasterForm) },
@@ -338,8 +326,53 @@ namespace RepairAndMaintenanceApp
             statsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             statsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-            var incomeVsExpenses = CreateMetricCard("Income vs. Expenses", "₹14,130.00", "₹4,990.00", "Income", "Expenses", Color.FromArgb(68, 101, 128), Color.FromArgb(207, 183, 122), true);
-            var payables = CreateMetricCard("Total Payables", "₹2345.00", "₹1243.00", "Current", "overdue", Color.FromArgb(54, 107, 125), Color.FromArgb(207, 183, 122), false);
+            var totalCredits = IncomeLedgerDataAccess.GetAll().Sum(entry => entry.Amount);
+            var expenseEntries = ExpenseLedgerDataAccess.GetAll();
+            var totalDebits = expenseEntries.Sum(entry => entry.Amount);
+            var incomeEntries = IncomeLedgerDataAccess.GetAll();
+            var currentMonthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            var nextMonthStart = currentMonthStart.AddMonths(1);
+            var currentMonthName = currentMonthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+            var currentMonthIncomeTotal = incomeEntries
+                .Where(entry =>
+                    (entry.EntryDate.HasValue
+                        && entry.EntryDate.Value >= currentMonthStart
+                        && entry.EntryDate.Value < nextMonthStart)
+                    || (!entry.EntryDate.HasValue
+                        && entry.SourceFile.Contains(currentMonthName, StringComparison.OrdinalIgnoreCase)))
+                .Sum(entry => entry.Amount);
+            var currentMonthExpenseTotal = expenseEntries
+                .Where(entry =>
+                    (entry.EntryDate.HasValue
+                        && entry.EntryDate.Value >= currentMonthStart
+                        && entry.EntryDate.Value < nextMonthStart)
+                    || (!entry.EntryDate.HasValue
+                        && entry.SourceFile.Contains(currentMonthName, StringComparison.OrdinalIgnoreCase)))
+                .Sum(entry => entry.Amount);
+            var currencyFormat = CultureInfo.GetCultureInfo("en-IN");
+            var incomeVsExpenses = CreateMetricCard(
+                "Income vs. Expenses",
+                $"₹{totalCredits.ToString("#,##0.00", currencyFormat)}",
+                $"₹{totalDebits.ToString("#,##0.00", currencyFormat)}",
+                "Income",
+                "Expenses",
+                Color.FromArgb(68, 101, 128),
+                Color.FromArgb(207, 183, 122),
+                true,
+                $"₹{(totalCredits - totalDebits).ToString("#,##0.00", currencyFormat)}",
+                "Balance");
+            var (totalPayables, totalOverdue) = GetPayableTotals();
+            var payables = CreateMetricCard(
+                "Total Payables",
+                $"₹{totalPayables.ToString("#,##0.00", currencyFormat)}",
+                $"₹{totalOverdue.ToString("#,##0.00", currencyFormat)}",
+                "Total Payables",
+                "Overdue",
+                Color.FromArgb(54, 107, 125),
+                Color.FromArgb(207, 183, 122),
+                false,
+                $"₹{(totalPayables - totalOverdue).ToString("#,##0.00", currencyFormat)}",
+                "Balance to Pay");
             statsLayout.Controls.Add(incomeVsExpenses, 0, 0);
             statsLayout.Controls.Add(payables, 1, 0);
 
@@ -357,15 +390,15 @@ namespace RepairAndMaintenanceApp
             bottomRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
             var expenseCard = CreateSmallLedgerCard(
-                "₹4,990.00",
-                "Expense Breakdown",
+                $"₹{currentMonthExpenseTotal.ToString("#,##0.00", currencyFormat)}",
+                $"{currentMonthName} Expenses",
                 Color.FromArgb(170, 80, 72),
                 "↘",
                 Color.FromArgb(250, 236, 234),
                 Color.FromArgb(214, 123, 112));
             var budgetCard = CreateSmallLedgerCard(
-                "₹23,361.00",
-                "Budget",
+                $"₹{currentMonthIncomeTotal.ToString("#,##0.00", currencyFormat)}",
+                $"{currentMonthName} Income",
                 Color.FromArgb(220, 199, 130),
                 "◌",
                 Color.FromArgb(248, 244, 227),
@@ -373,7 +406,17 @@ namespace RepairAndMaintenanceApp
             bottomRow.Controls.Add(expenseCard, 0, 0);
             bottomRow.Controls.Add(budgetCard, 1, 0);
 
-            var journalHealth = CreateJournalHealthCard();
+            var journalHealth = CreateJournalHealthCard(() =>
+            {
+                foreach (Button button in navFlow.Controls)
+                {
+                    if (string.Equals(button.Text, "Journal", StringComparison.Ordinal))
+                    {
+                        button.PerformClick();
+                        return;
+                    }
+                }
+            });
             bottomRow.Controls.Add(journalHealth, 2, 0);
 
             dashboardLayout = new TableLayoutPanel
@@ -461,7 +504,17 @@ namespace RepairAndMaintenanceApp
             host.ResumeLayout();
         }
 
-        private static Panel CreateMetricCard(string title, string currentValue, string overdueValue, string currentLabel, string overdueLabel, Color cardColor, Color accentColor, bool isReceivable)
+        private static Panel CreateMetricCard(
+            string title,
+            string currentValue,
+            string overdueValue,
+            string currentLabel,
+            string overdueLabel,
+            Color cardColor,
+            Color accentColor,
+            bool isReceivable,
+            string? thirdValue = null,
+            string? thirdLabel = null)
         {
             var panel = new Panel
             {
@@ -510,67 +563,55 @@ namespace RepairAndMaintenanceApp
                 Location = new Point(24, 60)
             };
 
+            var hasThirdValue = thirdValue is not null;
+            var valueCount = hasThirdValue ? 3 : 2;
             var valuesPanel = new TableLayoutPanel
             {
-                Width = 320,
+                Width = hasThirdValue ? 520 : 320,
                 Height = 92,
                 Location = new Point(24, 76),
-                ColumnCount = 2,
+                ColumnCount = valueCount,
                 RowCount = 2,
                 BackColor = Color.Transparent
             };
-            valuesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            valuesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            for (var column = 0; column < valueCount; column++)
+            {
+                valuesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / valueCount));
+            }
             valuesPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 55F));
             valuesPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 45F));
 
-            var current = new Label
-            {
-                Text = currentValue,
-                AutoSize = true,
-                Font = new Font("Segoe UI", 22F, FontStyle.Bold),
-                ForeColor = Color.White,
-                Anchor = AnchorStyles.Left,
-                Padding = new Padding(0, 0, 0, 0)
-            };
-
-            var overdue = new Label
-            {
-                Text = overdueValue,
-                AutoSize = true,
-                Font = new Font("Segoe UI", 20F, FontStyle.Bold),
-                ForeColor = Color.White,
-                Anchor = AnchorStyles.Right,
-                Padding = new Padding(0, 0, 0, 0)
-            };
-
+            var valueFont = new Font("Segoe UI", hasThirdValue ? 17F : 22F, FontStyle.Bold);
+            var labelFont = new Font("Segoe UI", 11F);
             var secondaryTextColor = isReceivable
                 ? Color.FromArgb(246, 232, 240)
                 : Color.FromArgb(224, 239, 241);
-            var currentLabelText = new Label
+            var metricValues = new[] { currentValue, overdueValue, thirdValue };
+            var metricLabels = new[] { currentLabel, overdueLabel, thirdLabel };
+            for (var index = 0; index < valueCount; index++)
             {
-                Text = currentLabel,
-                AutoSize = true,
-                Font = new Font("Segoe UI", 11F),
-                ForeColor = secondaryTextColor,
-                Anchor = AnchorStyles.Left,
-                Padding = new Padding(0, 0, 0, 0)
-            };
+                var valueLabel = new Label
+                {
+                    Text = metricValues[index] ?? string.Empty,
+                    AutoSize = true,
+                    Font = valueFont,
+                    ForeColor = Color.White,
+                    Anchor = hasThirdValue || index == 0 ? AnchorStyles.Left : AnchorStyles.Right,
+                    Padding = Padding.Empty
+                };
+                var captionLabel = new Label
+                {
+                    Text = metricLabels[index] ?? string.Empty,
+                    AutoSize = true,
+                    Font = labelFont,
+                    ForeColor = secondaryTextColor,
+                    Anchor = hasThirdValue || index == 0 ? AnchorStyles.Left : AnchorStyles.Right,
+                    Padding = Padding.Empty
+                };
 
-            var overdueLabelText = new Label
-            {
-                Text = overdueLabel,
-                AutoSize = true,
-                Font = new Font("Segoe UI", 11F),
-                ForeColor = secondaryTextColor,
-                Anchor = AnchorStyles.Right,
-                Padding = new Padding(0, 0, 0, 0)
-            };
-
-            valuesPanel.Controls.Add(current, 0, 0);
-            valuesPanel.Controls.Add(overdue, 1, 0);
-            valuesPanel.Controls.Add(currentLabelText, 0, 1);
-            valuesPanel.Controls.Add(overdueLabelText, 1, 1);
+                valuesPanel.Controls.Add(valueLabel, index, 0);
+                valuesPanel.Controls.Add(captionLabel, index, 1);
+            }
 
             panel.Controls.Add(titleLabel);
             panel.Controls.Add(track);
@@ -673,8 +714,15 @@ namespace RepairAndMaintenanceApp
             return panel;
         }
 
-        private static Panel CreateJournalHealthCard()
+        private static Panel CreateJournalHealthCard(Action navigateToJournal)
         {
+            var transactions = JournalTransactionDataAccess.GetAll();
+            var totalDebits = transactions.Sum(transaction => transaction.Debit);
+            var totalCredits = transactions.Sum(transaction => transaction.Credit);
+            var difference = Math.Abs(totalDebits - totalCredits);
+            var isBalanced = difference == 0m;
+            var currencyFormat = CultureInfo.GetCultureInfo("en-IN");
+
             var panel = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -709,7 +757,7 @@ namespace RepairAndMaintenanceApp
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Cursor = Cursors.Hand
             };
-            viewLink.Click += (_, _) => new JournalForm().Show();
+            viewLink.Click += (_, _) => navigateToJournal();
 
             var table = new TableLayoutPanel
             {
@@ -729,10 +777,10 @@ namespace RepairAndMaintenanceApp
 
             var metrics = new[]
             {
-                new { Label = "Entries", Value = "5" },
-                new { Label = "Debits", Value = "₹8,550.00" },
-                new { Label = "Credits", Value = "₹3,550.00" },
-                new { Label = "Difference", Value = "₹5,000.00" }
+                new { Label = "Entries", Value = transactions.Count.ToString("N0", currencyFormat) },
+                new { Label = "Debits", Value = $"₹{totalDebits.ToString("#,##0.00", currencyFormat)}" },
+                new { Label = "Credits", Value = $"₹{totalCredits.ToString("#,##0.00", currencyFormat)}" },
+                new { Label = "Difference", Value = $"₹{difference.ToString("#,##0.00", currencyFormat)}" }
             };
 
             for (var i = 0; i < metrics.Length; i++)
@@ -750,7 +798,7 @@ namespace RepairAndMaintenanceApp
                     Text = metrics[i].Value,
                     Dock = DockStyle.Fill,
                     Font = new Font("Segoe UI", 12F, FontStyle.Bold),
-                    ForeColor = i == 3 ? Color.FromArgb(176, 73, 64) : Color.FromArgb(42, 50, 59),
+                    ForeColor = i == 3 && !isBalanced ? Color.FromArgb(176, 73, 64) : Color.FromArgb(42, 50, 59),
                     TextAlign = ContentAlignment.TopLeft
                 };
 
@@ -760,10 +808,10 @@ namespace RepairAndMaintenanceApp
 
             var status = new Label
             {
-                Text = "Out of balance - review required",
+                Text = isBalanced ? "Journal is balanced" : "Out of balance - review required",
                 AutoSize = true,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(176, 73, 64),
+                ForeColor = isBalanced ? Color.FromArgb(54, 125, 91) : Color.FromArgb(176, 73, 64),
                 Location = new Point(22, 165)
             };
 
@@ -772,6 +820,63 @@ namespace RepairAndMaintenanceApp
             panel.Controls.Add(table);
             panel.Controls.Add(status);
             return panel;
+        }
+
+        private static (decimal TotalPayables, decimal TotalOverdue) GetPayableTotals()
+        {
+            var payableTransactions = JournalTransactionDataAccess.GetAll()
+                .Where(transaction =>
+                    transaction.Particulars.Contains("supplier", StringComparison.OrdinalIgnoreCase)
+                    || transaction.Particulars.Contains("vendor", StringComparison.OrdinalIgnoreCase)
+                    || transaction.Particulars.Contains("payable", StringComparison.OrdinalIgnoreCase)
+                    || transaction.Particulars.Contains("creditor", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(transaction => transaction.Particulars.Trim(), StringComparer.OrdinalIgnoreCase);
+
+            var totalPayables = 0m;
+            var totalOverdue = 0m;
+            var today = DateTime.Today;
+
+            foreach (var account in payableTransactions)
+            {
+                var outstandingCredits = new List<(decimal Amount, DateTime? EntryDate)>();
+                var prepayment = 0m;
+
+                foreach (var transaction in account
+                    .OrderBy(x => x.EntryDate ?? DateTime.MaxValue)
+                    .ThenBy(x => x.Id))
+                {
+                    var debit = transaction.Debit;
+                    for (var index = 0; index < outstandingCredits.Count && debit > 0m; index++)
+                    {
+                        var offset = Math.Min(outstandingCredits[index].Amount, debit);
+                        outstandingCredits[index] = (outstandingCredits[index].Amount - offset, outstandingCredits[index].EntryDate);
+                        debit -= offset;
+                    }
+
+                    outstandingCredits.RemoveAll(credit => credit.Amount == 0m);
+                    prepayment += debit;
+
+                    var creditAmount = transaction.Credit;
+                    var prepaymentOffset = Math.Min(creditAmount, prepayment);
+                    creditAmount -= prepaymentOffset;
+                    prepayment -= prepaymentOffset;
+                    if (creditAmount > 0m)
+                    {
+                        outstandingCredits.Add((creditAmount, transaction.EntryDate));
+                    }
+                }
+
+                foreach (var outstandingCredit in outstandingCredits)
+                {
+                    totalPayables += outstandingCredit.Amount;
+                    if (outstandingCredit.EntryDate.HasValue && outstandingCredit.EntryDate.Value.Date < today)
+                    {
+                        totalOverdue += outstandingCredit.Amount;
+                    }
+                }
+            }
+
+            return (totalPayables, totalOverdue);
         }
     }
 }
