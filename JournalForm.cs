@@ -1,7 +1,9 @@
 using System;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
+using RepairAndMaintenanceApp.DataLayer;
 
 namespace RepairAndMaintenanceApp
 {
@@ -37,58 +39,116 @@ namespace RepairAndMaintenanceApp
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
 
-            var monthAndDateLabel = new Label
+            var monthLabel = new Label
             {
-                Text = "MonthAndDate",
+                Text = "Month",
                 AutoSize = true,
                 Location = new Point(14, 19),
                 ForeColor = Color.FromArgb(60, 72, 84),
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold)
             };
 
-            var monthAndDateBox = new DateTimePicker
+            var monthPicker = new DateTimePicker
             {
                 Width = 150,
-                Location = new Point(112, 15),
+                Location = new Point(62, 15),
                 Format = DateTimePickerFormat.Custom,
-                CustomFormat = "yyyy-MM-dd",
-                ShowCheckBox = true,
-                Checked = false
+                CustomFormat = "MMMM yyyy",
+                ShowUpDown = true
             };
 
-            var accountLabel = new Label
+            var particularsLabel = new Label
             {
-                Text = "Account",
+                Text = "Particulars",
                 AutoSize = true,
-                Location = new Point(282, 19),
+                Location = new Point(232, 19),
                 ForeColor = Color.FromArgb(60, 72, 84),
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold)
             };
 
-            var accountSearchBox = new ComboBox
+            var particularsBox = new ComboBox
             {
-                Width = 155,
-                Location = new Point(354, 14),
+                Width = 190,
+                Location = new Point(306, 14),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            accountSearchBox.Items.AddRange(new object[]
-            {
-                "All accounts",
-                "Cash",
-                "Office Supplies",
-                "Accounts Receivable",
-                "Maintenance Expense",
-                "Bank"
-            });
-            accountSearchBox.SelectedIndex = 0;
+            particularsBox.Items.Add("All particulars");
+            particularsBox.Items.AddRange(JournalTransactionDataAccess.GetDistinctParticulars().Cast<object>().ToArray());
+            particularsBox.SelectedIndex = 0;
 
-            var searchButton = CreateActionButton("Search", 530, 13, 90, Color.FromArgb(32, 74, 140), Color.White);
-            var clearButton = CreateActionButton("Clear", 630, 13, 80, Color.FromArgb(232, 236, 240), Color.FromArgb(60, 72, 84));
+            var searchButton = CreateActionButton("Search", 512, 13, 90, Color.FromArgb(32, 74, 140), Color.White);
+            var clearButton = CreateActionButton("Clear", 612, 13, 80, Color.FromArgb(232, 236, 240), Color.FromArgb(60, 72, 84));
 
             var grid = new DataGridView
             {
-                Location = new Point(24, 134),
-                Size = new Size(900, 438),
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                RowHeadersVisible = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                GridColor = Color.Black,
+                EnableHeadersVisualStyles = false,
+                CellBorderStyle = DataGridViewCellBorderStyle.Single,
+                ColumnHeadersHeight = 32,
+                ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single
+            };
+            grid.RowTemplate.Height = 30;
+            grid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.White,
+                ForeColor = Color.Black,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Padding = new Padding(2, 0, 2, 0),
+                Alignment = DataGridViewContentAlignment.MiddleLeft
+            };
+            grid.DefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.White,
+                ForeColor = Color.Black,
+                SelectionBackColor = Color.White,
+                SelectionForeColor = Color.Black,
+                Padding = new Padding(2, 3, 2, 3),
+                Font = new Font("Segoe UI", 10F),
+                NullValue = string.Empty
+            };
+
+            grid.Columns.Add("Date", "Date");
+            grid.Columns.Add("Particulars", "Particulars");
+            grid.Columns.Add("Debit", "Amount (Rs)");
+            grid.Columns.Add("Credit", "Amount (Rs)");
+            grid.Columns["Date"]!.FillWeight = 18;
+            grid.Columns["Particulars"]!.FillWeight = 48;
+            grid.Columns["Debit"]!.FillWeight = 17;
+            grid.Columns["Credit"]!.FillWeight = 17;
+            grid.Columns["Debit"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            grid.Columns["Credit"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+
+            var statementTitle = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 40,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+                ForeColor = Color.Black,
+                BackColor = Color.White
+            };
+            var statementPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White,
+                Padding = new Padding(10)
+            };
+            statementPanel.Controls.Add(grid);
+            statementPanel.Controls.Add(statementTitle);
+
+            var balanceGrid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
                 ReadOnly = true,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
@@ -102,253 +162,176 @@ namespace RepairAndMaintenanceApp
                 EnableHeadersVisualStyles = false,
                 CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
                 ColumnHeadersHeight = 36,
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+                RowTemplate = { Height = 32 }
             };
-            grid.RowTemplate.Height = 32;
-            grid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+            balanceGrid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
             {
                 BackColor = Color.FromArgb(79, 100, 135),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Padding = new Padding(2, 0, 2, 0)
             };
-            grid.DefaultCellStyle = new DataGridViewCellStyle
+            balanceGrid.DefaultCellStyle = new DataGridViewCellStyle
             {
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(42, 50, 59),
                 SelectionBackColor = Color.FromArgb(140, 156, 189),
                 SelectionForeColor = Color.White,
                 Padding = new Padding(2, 3, 2, 3),
-                Font = new Font("Segoe UI", 10F)
+                Font = new Font("Segoe UI", 9F)
             };
-
-            grid.Columns.Add("Date", "Date");
-            grid.Columns.Add("Ref", "Reference");
-            grid.Columns.Add("Account", "Account");
-            grid.Columns.Add("Debit", "Debit");
-            grid.Columns.Add("Credit", "Credit");
-            grid.Columns.Add("Notes", "Notes");
-
-            grid.Rows.Add("2026-08-03", "JV-101", "Cash", "$6,200.00", "", "Opening balance");
-            grid.Rows.Add("2026-08-05", "JV-102", "Office Supplies", "$420.00", "", "Stationery");
-            grid.Rows.Add("2026-08-09", "JV-103", "Accounts Receivable", "", "$1,450.00", "Service invoice");
-            grid.Rows.Add("2026-08-12", "JV-104", "Maintenance Expense", "$1,930.00", "", "Equipment service");
-            grid.Rows.Add("2026-08-18", "JV-105", "Bank", "", "$2,100.00", "Deposit received");
-
-            var editorPanel = new Panel
+            balanceGrid.Columns.Add("Particulars", "Particulars");
+            balanceGrid.Columns.Add("OpeningDebit", "Opening Dr (₹)");
+            balanceGrid.Columns.Add("OpeningCredit", "Opening Cr (₹)");
+            balanceGrid.Columns.Add("MonthlyDebit", "Month Dr (₹)");
+            balanceGrid.Columns.Add("MonthlyCredit", "Month Cr (₹)");
+            balanceGrid.Columns.Add("ClosingDebit", "Closing Dr (₹)");
+            balanceGrid.Columns.Add("ClosingCredit", "Closing Cr (₹)");
+            balanceGrid.Columns["Particulars"]!.FillWeight = 30;
+            foreach (var columnName in new[] { "OpeningDebit", "OpeningCredit", "MonthlyDebit", "MonthlyCredit", "ClosingDebit", "ClosingCredit" })
             {
-                Location = new Point(24, 584),
-                Size = new Size(900, 165),
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.None,
-                Padding = new Padding(12),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
-            };
-
-            var editorTitle = new Label
-            {
-                Text = "Save / Update Journal Entry",
-                AutoSize = true,
-                Location = new Point(14, 10),
-                ForeColor = Color.FromArgb(32, 74, 140),
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold)
-            };
-
-            var dateBox = new DateTimePicker
-            {
-                Location = new Point(14, 56),
-                Width = 125,
-                Format = DateTimePickerFormat.Custom,
-                CustomFormat = "yyyy-MM-dd"
-            };
-            var referenceBox = CreateEditorTextBox(235, 56, 110);
-            var accountBox = CreateEditorTextBox(365, 56, 165);
-            var debitBox = CreateEditorTextBox(550, 56, 110);
-            var creditBox = CreateEditorTextBox(675, 56, 110);
-            var notesBox = CreateEditorTextBox(14, 116, 300);
-
-            AddEditorLabel(editorPanel, "Date", 14, 35);
-            AddEditorLabel(editorPanel, "Reference", 235, 35);
-            AddEditorLabel(editorPanel, "Account", 365, 35);
-            AddEditorLabel(editorPanel, "Debit", 550, 35);
-            AddEditorLabel(editorPanel, "Credit", 675, 35);
-            AddEditorLabel(editorPanel, "Notes", 14, 95);
-
-            var addNewButton = CreateActionButton("Add New", 330, 108, 95, Color.FromArgb(70, 120, 75), Color.White);
-            var saveButton = CreateActionButton("Save", 435, 108, 85, Color.FromArgb(32, 74, 140), Color.White);
-            var updateButton = CreateActionButton("Update", 530, 108, 90, Color.FromArgb(0, 114, 180), Color.White);
-            var deleteButton = CreateActionButton("Delete Row", 630, 108, 105, Color.FromArgb(180, 55, 55), Color.White);
-
-            void LoadSelectedRow()
-            {
-                if (grid.CurrentRow == null)
-                {
-                    return;
-                }
-
-                if (DateTime.TryParseExact(grid.CurrentRow.Cells[0].Value?.ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate))
-                {
-                    dateBox.Value = entryDate;
-                }
-
-                referenceBox.Text = grid.CurrentRow.Cells[1].Value?.ToString();
-                accountBox.Text = grid.CurrentRow.Cells[2].Value?.ToString();
-                debitBox.Text = grid.CurrentRow.Cells[3].Value?.ToString();
-                creditBox.Text = grid.CurrentRow.Cells[4].Value?.ToString();
-                notesBox.Text = grid.CurrentRow.Cells[5].Value?.ToString();
+                balanceGrid.Columns[columnName]!.FillWeight = 14;
+                balanceGrid.Columns[columnName]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             }
 
-            bool TryValidateEditor()
+            var tabs = new TabControl
             {
-                if (string.IsNullOrWhiteSpace(referenceBox.Text) || string.IsNullOrWhiteSpace(accountBox.Text) || string.IsNullOrWhiteSpace(notesBox.Text))
-                {
-                    MessageBox.Show("Enter the reference, account, and notes.", "Journal Entry", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return false;
-                }
-
-                var debit = ParseAmount(debitBox.Text);
-                var credit = ParseAmount(creditBox.Text);
-                if (debit == null || credit == null || (debit == 0 && credit == 0) || (debit > 0 && credit > 0))
-                {
-                    MessageBox.Show("Enter either a debit or a credit amount.", "Journal Entry", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return false;
-                }
-
-                debitBox.Text = debit == 0 ? string.Empty : debit.Value.ToString("C2", CultureInfo.GetCultureInfo("en-US"));
-                creditBox.Text = credit == 0 ? string.Empty : credit.Value.ToString("C2", CultureInfo.GetCultureInfo("en-US"));
-                return true;
-            }
-
-            addNewButton.Click += (_, _) =>
-            {
-                grid.ClearSelection();
-                dateBox.Value = DateTime.Today;
-                referenceBox.Clear();
-                accountBox.Clear();
-                debitBox.Clear();
-                creditBox.Clear();
-                notesBox.Clear();
-                referenceBox.Focus();
+                Location = new Point(24, 134),
+                Size = new Size(900, 600),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
+            var transactionsTab = new TabPage("Journal Entries");
+            var balancesTab = new TabPage("Opening / Closing Balances");
+            transactionsTab.Controls.Add(statementPanel);
+            balancesTab.Controls.Add(balanceGrid);
+            tabs.TabPages.Add(transactionsTab);
+            tabs.TabPages.Add(balancesTab);
 
-            saveButton.Click += (_, _) =>
+            void LoadTransactions()
             {
-                if (!TryValidateEditor())
+                var selectedMonth = monthPicker.Value;
+                var monthStart = new DateTime(selectedMonth.Year, selectedMonth.Month, 1);
+                var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+                statementTitle.Text = $"Daily Transactions for the month of {monthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture)}";
+
+                var selectedParticulars = particularsBox.SelectedIndex > 0
+                    ? particularsBox.SelectedItem?.ToString()
+                    : null;
+                var transactions = JournalTransactionDataAccess.GetAll(selectedMonth, selectedParticulars);
+                var particularBalances = JournalTransactionDataAccess.GetMonthlyBalances(selectedMonth, selectedParticulars);
+
+                grid.Rows.Clear();
+
+                var openingNet = particularBalances.Sum(balance => balance.OpeningDebit - balance.OpeningCredit);
+                var monthlyDebit = particularBalances.Sum(balance => balance.MonthlyDebit);
+                var monthlyCredit = particularBalances.Sum(balance => balance.MonthlyCredit);
+                var totalDebit = Math.Max(openingNet, 0m) + monthlyDebit;
+                var totalCredit = Math.Max(-openingNet, 0m) + monthlyCredit;
+
+                AddStatementRow(
+                    monthStart.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture),
+                    "Opening Balance",
+                    Math.Max(openingNet, 0m),
+                    Math.Max(-openingNet, 0m),
+                    true);
+
+                foreach (var transaction in transactions)
                 {
-                    return;
+                    AddStatementRow(
+                        transaction.EntryDate.HasValue ? FormatDate(transaction.EntryDate) : string.Empty,
+                        transaction.Particulars,
+                        transaction.Debit,
+                        transaction.Credit,
+                        false);
                 }
 
-                grid.Rows.Add(dateBox.Value.ToString("yyyy-MM-dd"), referenceBox.Text.Trim(), accountBox.Text.Trim(), debitBox.Text, creditBox.Text, notesBox.Text.Trim());
-                MessageBox.Show("Journal entry saved.", "Journal Entry", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
+                AddStatementRow(string.Empty, "Total", totalDebit, totalCredit, true);
 
-            updateButton.Click += (_, _) =>
-            {
-                if (!TryValidateEditor() || grid.CurrentRow == null)
+                var closingDifference = totalDebit - totalCredit;
+                var closingDebit = Math.Max(-closingDifference, 0m);
+                var closingCredit = Math.Max(closingDifference, 0m);
+                AddStatementRow(
+                    string.Empty,
+                    $"Closing Balance as on {monthEnd.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture)}",
+                    closingDebit,
+                    closingCredit,
+                    true);
+                AddStatementRow(
+                    string.Empty,
+                    "Grand Total",
+                    totalDebit + closingDebit,
+                    totalCredit + closingCredit,
+                    true);
+
+                balanceGrid.Rows.Clear();
+                foreach (var balance in particularBalances)
                 {
-                    return;
-                }
-
-                grid.CurrentRow.SetValues(dateBox.Value.ToString("yyyy-MM-dd"), referenceBox.Text.Trim(), accountBox.Text.Trim(), debitBox.Text, creditBox.Text, notesBox.Text.Trim());
-                MessageBox.Show("Journal entry updated.", "Journal Entry", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
-
-            deleteButton.Click += (_, _) =>
-            {
-                if (grid.CurrentRow == null)
-                {
-                    return;
-                }
-
-                var confirmation = MessageBox.Show("Delete the selected journal entry?", "Delete Journal Entry", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                if (confirmation == DialogResult.Yes)
-                {
-                    grid.Rows.Remove(grid.CurrentRow);
-                    MessageBox.Show("Journal entry deleted.", "Journal Entry", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-            };
-
-            void ApplySearch()
-            {
-                var selectedDate = monthAndDateBox.Value.ToString("yyyy-MM-dd");
-                var selectedAccount = accountSearchBox.SelectedItem?.ToString() ?? "All accounts";
-
-                foreach (DataGridViewRow row in grid.Rows)
-                {
-                    var matchesDate = !monthAndDateBox.Checked || row.Cells[0].Value?.ToString() == selectedDate;
-                    var matchesAccount = selectedAccount == "All accounts" || row.Cells[2].Value?.ToString() == selectedAccount;
-                    row.Visible = matchesDate && matchesAccount;
+                    balanceGrid.Rows.Add(
+                        balance.Particulars,
+                        FormatAmount(balance.OpeningDebit),
+                        FormatAmount(balance.OpeningCredit),
+                        FormatAmount(balance.MonthlyDebit),
+                        FormatAmount(balance.MonthlyCredit),
+                        FormatAmount(balance.ClosingDebit),
+                        FormatAmount(balance.ClosingCredit));
                 }
             }
 
-            searchButton.Click += (_, _) => ApplySearch();
+            void AddStatementRow(string date, string particulars, decimal debit, decimal credit, bool isSummary)
+            {
+                var rowIndex = grid.Rows.Add(date, particulars, FormatStatementAmount(debit), FormatStatementAmount(credit));
+                if (isSummary)
+                {
+                    grid.Rows[rowIndex].DefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+                }
+            }
+
+            searchButton.Click += (_, _) => LoadTransactions();
             clearButton.Click += (_, _) =>
             {
-                monthAndDateBox.Checked = false;
-                accountSearchBox.SelectedIndex = 0;
-                ApplySearch();
+                monthPicker.Value = DateTime.Today;
+                particularsBox.SelectedIndex = 0;
+                LoadTransactions();
             };
 
-            grid.SelectionChanged += (_, _) => LoadSelectedRow();
-
-            searchPanel.Controls.Add(monthAndDateLabel);
-            searchPanel.Controls.Add(monthAndDateBox);
-            searchPanel.Controls.Add(accountLabel);
-            searchPanel.Controls.Add(accountSearchBox);
+            searchPanel.Controls.Add(monthLabel);
+            searchPanel.Controls.Add(monthPicker);
+            searchPanel.Controls.Add(particularsLabel);
+            searchPanel.Controls.Add(particularsBox);
             searchPanel.Controls.Add(searchButton);
             searchPanel.Controls.Add(clearButton);
 
-            editorPanel.Controls.Add(editorTitle);
-            editorPanel.Controls.Add(dateBox);
-            editorPanel.Controls.Add(referenceBox);
-            editorPanel.Controls.Add(accountBox);
-            editorPanel.Controls.Add(debitBox);
-            editorPanel.Controls.Add(creditBox);
-            editorPanel.Controls.Add(notesBox);
-            editorPanel.Controls.Add(addNewButton);
-            editorPanel.Controls.Add(saveButton);
-            editorPanel.Controls.Add(updateButton);
-            editorPanel.Controls.Add(deleteButton);
-
             Controls.Add(title);
             Controls.Add(searchPanel);
-            Controls.Add(grid);
-            Controls.Add(editorPanel);
+            Controls.Add(tabs);
 
-            LoadSelectedRow();
-        }
-
-        private static decimal? ParseAmount(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
+            Resize += (_, _) =>
             {
-                return 0;
-            }
-
-            return decimal.TryParse(text.Replace("$", string.Empty).Replace(",", string.Empty), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
-                ? amount
-                : null;
-        }
-
-        private static TextBox CreateEditorTextBox(int x, int y, int width)
-        {
-            return new TextBox
-            {
-                Location = new Point(x, y),
-                Width = width
+                searchPanel.Width = Math.Max(0, ClientSize.Width - 48);
+                tabs.Width = Math.Max(0, ClientSize.Width - 48);
+                tabs.Height = Math.Max(120, ClientSize.Height - 158);
             };
+
+            LoadTransactions();
         }
 
-        private static void AddEditorLabel(Control parent, string text, int x, int y)
+        private static string FormatDate(DateTime? date)
         {
-            parent.Controls.Add(new Label
-            {
-                Text = text,
-                AutoSize = true,
-                Location = new Point(x, y),
-                ForeColor = Color.FromArgb(60, 72, 84),
-                Font = new Font("Segoe UI", 8F, FontStyle.Bold)
-            });
+            return date?.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+
+        private static string FormatAmount(decimal amount)
+        {
+            return amount == 0m
+                ? string.Empty
+                : $"₹{amount.ToString("#,##0.00", CultureInfo.GetCultureInfo("en-IN"))}";
+        }
+
+        private static string FormatStatementAmount(decimal amount)
+        {
+            return amount == 0m
+                ? "-"
+                : amount.ToString("#,##0.00", CultureInfo.GetCultureInfo("en-IN"));
         }
 
         private static Button CreateActionButton(string text, int x, int y, int width, Color backColor, Color foreColor)
@@ -361,7 +344,8 @@ namespace RepairAndMaintenanceApp
                 Height = 30,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = backColor,
-                ForeColor = foreColor
+                ForeColor = foreColor,
+                Cursor = Cursors.Hand
             };
             button.FlatAppearance.BorderSize = 0;
             return button;

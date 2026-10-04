@@ -160,7 +160,7 @@ namespace RepairAndMaintenanceApp
                 Padding = new Padding(20, 10, 20, 10),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
-                AutoScroll = false
+                AutoScroll = true
             };
 
             Panel content = null!;
@@ -176,6 +176,7 @@ namespace RepairAndMaintenanceApp
                 new { Text = "Categories", FormType = typeof(CategoryMasterForm) },
                 new { Text = "Particulars", FormType = typeof(ParticularMasterForm) },
                 new {Text = "Balance Sheet", FormType = typeof(BalanceSheetForm) },
+                new { Text = "Monthly Summary", FormType = typeof(MonthlyIncomeExpenseSummaryForm) },
                 new { Text = "Reports", FormType = typeof(ReportsForm) }               
             };
 
