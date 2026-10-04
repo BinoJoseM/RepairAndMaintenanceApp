@@ -176,7 +176,7 @@ namespace RepairAndMaintenanceApp
             var editorPanel = new Panel
             {
                 Location = new Point(24, 584),
-                Size = new Size(900, 165),
+                Size = new Size(900, 190),
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.None,
                 Padding = new Padding(12),
@@ -186,25 +186,27 @@ namespace RepairAndMaintenanceApp
             var editorTitle = new Label
             {
                 Text = "Save / Update Income Data",
-                AutoSize = true,
+                AutoSize = false,
+                Size = new Size(856, 24),
                 Location = new Point(14, 10),
                 ForeColor = Color.FromArgb(54, 107, 125),
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold)
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold)
             };
 
             var dateBox = new DateTimePicker
             {
                 Location = new Point(14, 56),
-                Width = 125,
+                Width = 165,
+                Height = 32,
+                AutoSize = false,
                 Format = DateTimePickerFormat.Custom,
                 CustomFormat = "yyyy-MM-dd",
                 BackColor = Color.White,
-                Font = new Font("Segoe UI", 9F)
+                Font = new Font("Segoe UI", 10F)
             };
-            var particularsBox = CreateEditorDropDown(235, 56, 205);
-            var amountBox = CreateEditorTextBox(536, 56, 115);
-
-            var categoryBox = CreateDropDown(675, 55, 190, SqliteDataAccess.GetCategoryNames("Income").ToArray());
+            var categoryBox = CreateDropDown(205, 56, 210, SqliteDataAccess.GetCategoryNames("Income").ToArray());
+            var particularsBox = CreateEditorDropDown(435, 56, 250);
+            var amountBox = CreateEditorTextBox(715, 56, 150);
 
             void LoadParticularOptions(string? selectedParticular = null)
             {
@@ -218,18 +220,66 @@ namespace RepairAndMaintenanceApp
                 particularsBox.SelectedItem = selectedParticular;
             }
 
+            bool TryEnsureParticularExists()
+            {
+                var categoryName = categoryBox.SelectedItem?.ToString() ?? string.Empty;
+                var particularName = particularsBox.Text.Trim();
+                var existingParticular = particularsBox.Items
+                    .Cast<string>()
+                    .FirstOrDefault(name => string.Equals(name, particularName, StringComparison.OrdinalIgnoreCase));
+
+                if (existingParticular != null)
+                {
+                    particularsBox.SelectedItem = existingParticular;
+                    return true;
+                }
+
+                var category = CategoryMasterService.GetAll()
+                    .FirstOrDefault(item =>
+                        string.Equals(item.CategoryName, categoryName, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(item.CategoryType, "Income", StringComparison.OrdinalIgnoreCase) &&
+                        item.IsActive);
+
+                if (category == null)
+                {
+                    MessageBox.Show("Select a valid income category before adding a particular.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+
+                var confirmation = MessageBox.Show(
+                    $"'{particularName}' is not listed for '{categoryName}'. Add it to this category?",
+                    "Add Particular",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirmation != DialogResult.Yes)
+                {
+                    return false;
+                }
+
+                ParticularMasterService.Add(new ParticularMaster
+                {
+                    CategoryId = category.Id,
+                    CategoryName = category.CategoryName,
+                    ParticularName = particularName
+                });
+
+                LoadParticularOptions(particularName);
+                return particularsBox.SelectedIndex >= 0;
+            }
+
             categoryBox.SelectedIndexChanged += (_, _) => LoadParticularOptions();
             LoadParticularOptions();
 
-            AddEditorLabel(editorPanel, "Date", 14, 35);
-            AddEditorLabel(editorPanel, "Particulars", 235, 35);
-            AddEditorLabel(editorPanel, "Amount", 536, 35);
-            AddEditorLabel(editorPanel, "Category", 675, 35);
+            AddEditorLabel(editorPanel, "Date", 14, 31, 165);
+            AddEditorLabel(editorPanel, "Category", 205, 31, 210);
+            AddEditorLabel(editorPanel, "Particulars", 435, 31, 250);
+            AddEditorLabel(editorPanel, "Amount", 715, 31, 150);
 
-            var addNewButton = CreateActionButton("Add New", 420, 108, 95, Color.FromArgb(70, 120, 75), Color.White);
-            var saveButton = CreateActionButton("Save", 526, 108, 95, Color.FromArgb(79, 100, 135), Color.White);
-            var updateButton = CreateActionButton("Update", 632, 108, 95, Color.FromArgb(54, 107, 125), Color.White);
-            var deleteButton = CreateActionButton("Delete Row", 738, 108, 110, Color.FromArgb(170, 80, 72), Color.White);
+            var addNewButton = CreateActionButton("Add New", 350, 116, 120, Color.FromArgb(70, 120, 75), Color.White, 38);
+            var saveButton = CreateActionButton("Save", 480, 116, 120, Color.FromArgb(79, 100, 135), Color.White, 38);
+            var updateButton = CreateActionButton("Update", 610, 116, 120, Color.FromArgb(54, 107, 125), Color.White, 38);
+            var deleteButton = CreateActionButton("Delete Row", 740, 116, 130, Color.FromArgb(170, 80, 72), Color.White, 38);
 
             void LoadSelectedRow()
             {
@@ -262,7 +312,7 @@ namespace RepairAndMaintenanceApp
 
             bool TryValidateEditor()
             {
-                if (categoryBox.SelectedIndex < 0 || particularsBox.SelectedIndex < 0 || string.IsNullOrWhiteSpace(amountBox.Text))
+                if (categoryBox.SelectedIndex < 0 || string.IsNullOrWhiteSpace(particularsBox.Text) || string.IsNullOrWhiteSpace(amountBox.Text))
                 {
                     MessageBox.Show("Select a category and particular, then enter the amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
@@ -290,7 +340,7 @@ namespace RepairAndMaintenanceApp
 
             saveButton.Click += (_, _) =>
             {
-                if (!TryValidateEditor())
+                if (!TryValidateEditor() || !TryEnsureParticularExists())
                 {
                     return;
                 }
@@ -313,7 +363,7 @@ namespace RepairAndMaintenanceApp
 
             updateButton.Click += (_, _) =>
             {
-                if (!TryValidateEditor() || grid.CurrentRow == null)
+                if (!TryValidateEditor() || grid.CurrentRow == null || !TryEnsureParticularExists())
                 {
                     return;
                 }
@@ -442,10 +492,13 @@ namespace RepairAndMaintenanceApp
             {
                 Location = new Point(x, y),
                 Width = width,
+                Height = 32,
+                AutoSize = false,
+                Multiline = false,
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(42, 50, 59),
                 BorderStyle = BorderStyle.FixedSingle,
-                Font = new Font("Segoe UI", 9F)
+                Font = new Font("Segoe UI", 10F)
             };
         }
 
@@ -455,10 +508,14 @@ namespace RepairAndMaintenanceApp
             {
                 Location = new Point(x, y),
                 Width = width,
-                DropDownStyle = ComboBoxStyle.DropDownList,
+                Height = 32,
+                DropDownStyle = ComboBoxStyle.DropDown,
+                AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                AutoCompleteSource = AutoCompleteSource.ListItems,
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(42, 50, 59),
-                Font = new Font("Segoe UI", 9F)
+                FlatStyle = FlatStyle.Standard,
+                Font = new Font("Segoe UI", 10F)
             };
         }
 
@@ -468,36 +525,42 @@ namespace RepairAndMaintenanceApp
             {
                 Location = new Point(x, y),
                 Width = width,
+                Height = 32,
+                IntegralHeight = false,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(42, 50, 59),
-                Font = new Font("Segoe UI", 9F)
+                FlatStyle = FlatStyle.Standard,
+                Font = new Font("Segoe UI", 10F)
             };
             comboBox.Items.AddRange(values);
             comboBox.SelectedIndex = 0;
             return comboBox;
         }
 
-        private static void AddEditorLabel(Control parent, string text, int x, int y)
+        private static void AddEditorLabel(Control parent, string text, int x, int y, int width)
         {
             parent.Controls.Add(new Label
             {
                 Text = text,
-                AutoSize = true,
+                AutoSize = false,
+                Width = width,
+                Height = 22,
                 Location = new Point(x, y),
                 ForeColor = Color.FromArgb(60, 72, 84),
-                Font = new Font("Segoe UI", 8F, FontStyle.Bold)
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft
             });
         }
 
-        private static Button CreateActionButton(string text, int x, int y, int width, Color backColor, Color foreColor)
+        private static Button CreateActionButton(string text, int x, int y, int width, Color backColor, Color foreColor, int height = 30)
         {
             var button = new Button
             {
                 Text = text,
                 Location = new Point(x, y),
                 Width = width,
-                Height = 30,
+                Height = height,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = backColor,
                 ForeColor = foreColor,
