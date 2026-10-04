@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using RepairAndMaintenanceApp.DataLayer;
@@ -48,33 +50,34 @@ namespace RepairAndMaintenanceApp
             {
                 Text = "Repair & Maintenance App",
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 24F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 22F, FontStyle.Bold),
                 UseMnemonic = false,
-                AutoSize = true,
-                Anchor = AnchorStyles.Left,
+                AutoSize = false,
+                Size = new Size(440, 36),
                 TextAlign = ContentAlignment.MiddleLeft
             };
-            var brandMark = new Label
+            var brandMark = new PictureBox
             {
-                Text = "◈",
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 18F, FontStyle.Bold),
-                AutoSize = true,
-                Margin = new Padding(0, 0, 6, 0),
-                Anchor = AnchorStyles.Left
+                Image = Image.FromFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "white-Home.png")),
+                Size = new Size(32, 32),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0, 2, 8, 2)
             };
 
-            var brandPanel = new FlowLayoutPanel
+            var brandPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Padding = new Padding(0, 12, 0, 10)
+                ColumnCount = 2,
+                RowCount = 1,
+                Padding = new Padding(0, 18, 0, 18),
+                Margin = Padding.Empty
             };
-            brandPanel.Controls.Add(brandMark);
-            brandPanel.Controls.Add(brand);
+            brandPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
+            brandPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            brandPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            brandPanel.Controls.Add(brandMark, 0, 0);
+            brandPanel.Controls.Add(brand, 1, 0);
 
             headerContent.Controls.Add(brandPanel, 0, 0);
 
@@ -107,20 +110,22 @@ namespace RepairAndMaintenanceApp
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
-                AutoSize = true,
-                Padding = new Padding(0, 16, 0, 12),
-                Anchor = AnchorStyles.Right
+                Padding = new Padding(0, 18, 0, 18),
+                Anchor = AnchorStyles.Right,
+                Margin = Padding.Empty
             };
 
             var logoutButton = new Button
             {
                 Text = "⇥  Log out",
-                AutoSize = true,
+                Size = new Size(112, 36),
+                AutoSize = false,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(79, 100, 135),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                Padding = new Padding(10, 5, 10, 5),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Padding = Padding.Empty,
                 Margin = Padding.Empty,
                 Cursor = Cursors.Hand
             };
@@ -165,7 +170,7 @@ namespace RepairAndMaintenanceApp
                 new { Text = "Particulars", FormType = typeof(ParticularMasterForm) },
                 new {Text = "Balance Sheet", FormType = typeof(BalanceSheetForm) },
                 new { Text = "Monthly Summary", FormType = typeof(MonthlyIncomeExpenseSummaryForm) },
-                new { Text = "Reports", FormType = typeof(ReportsForm) }               
+                new { Text = "Reports", FormType = typeof(ReportForm) }               
             };
 
             foreach (var item in navItems)
@@ -331,24 +336,26 @@ namespace RepairAndMaintenanceApp
             var totalDebits = expenseEntries.Sum(entry => entry.Amount);
             var incomeEntries = IncomeLedgerDataAccess.GetAll();
             var currentMonthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-            var nextMonthStart = currentMonthStart.AddMonths(1);
             var currentMonthName = currentMonthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-            var currentMonthIncomeTotal = incomeEntries
-                .Where(entry =>
-                    (entry.EntryDate.HasValue
-                        && entry.EntryDate.Value >= currentMonthStart
-                        && entry.EntryDate.Value < nextMonthStart)
-                    || (!entry.EntryDate.HasValue
-                        && entry.SourceFile.Contains(currentMonthName, StringComparison.OrdinalIgnoreCase)))
-                .Sum(entry => entry.Amount);
-            var currentMonthExpenseTotal = expenseEntries
-                .Where(entry =>
-                    (entry.EntryDate.HasValue
-                        && entry.EntryDate.Value >= currentMonthStart
-                        && entry.EntryDate.Value < nextMonthStart)
-                    || (!entry.EntryDate.HasValue
-                        && entry.SourceFile.Contains(currentMonthName, StringComparison.OrdinalIgnoreCase)))
-                .Sum(entry => entry.Amount);
+
+            decimal SumForMonth(IEnumerable<(DateTime? EntryDate, string SourceFile, decimal Amount)> entries, DateTime monthStart)
+            {
+                var nextMonthStart = monthStart.AddMonths(1);
+                var monthName = monthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+                return entries
+                    .Where(entry =>
+                        (entry.EntryDate.HasValue
+                            && entry.EntryDate.Value >= monthStart
+                            && entry.EntryDate.Value < nextMonthStart)
+                        || (!entry.EntryDate.HasValue
+                            && entry.SourceFile.Contains(monthName, StringComparison.OrdinalIgnoreCase)))
+                    .Sum(entry => entry.Amount);
+            }
+
+            var incomeMonthEntries = incomeEntries.Select(entry => (entry.EntryDate, entry.SourceFile, entry.Amount));
+            var expenseMonthEntries = expenseEntries.Select(entry => (entry.EntryDate, entry.SourceFile, entry.Amount));
+            var currentMonthIncomeTotal = SumForMonth(incomeMonthEntries, currentMonthStart);
+            var currentMonthExpenseTotal = SumForMonth(expenseMonthEntries, currentMonthStart);
             var currencyFormat = CultureInfo.GetCultureInfo("en-IN");
             var incomeVsExpenses = CreateMetricCard(
                 "Income vs. Expenses",
@@ -373,6 +380,7 @@ namespace RepairAndMaintenanceApp
                 false,
                 $"₹{(totalPayables - totalOverdue).ToString("#,##0.00", currencyFormat)}",
                 "Balance to Pay");
+            payables.Margin = Padding.Empty;
             statsLayout.Controls.Add(incomeVsExpenses, 0, 0);
             statsLayout.Controls.Add(payables, 1, 0);
 
@@ -389,14 +397,14 @@ namespace RepairAndMaintenanceApp
             bottomRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             bottomRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-            var expenseCard = CreateSmallLedgerCard(
+            var (expenseCard, expenseValueLabel, expenseCaptionLabel) = CreateSmallLedgerCard(
                 $"₹{currentMonthExpenseTotal.ToString("#,##0.00", currencyFormat)}",
                 $"{currentMonthName} Expenses",
                 Color.FromArgb(170, 80, 72),
                 "↘",
                 Color.FromArgb(250, 236, 234),
                 Color.FromArgb(214, 123, 112));
-            var budgetCard = CreateSmallLedgerCard(
+            var (budgetCard, incomeValueLabel, incomeCaptionLabel) = CreateSmallLedgerCard(
                 $"₹{currentMonthIncomeTotal.ToString("#,##0.00", currencyFormat)}",
                 $"{currentMonthName} Income",
                 Color.FromArgb(220, 199, 130),
@@ -405,6 +413,76 @@ namespace RepairAndMaintenanceApp
                 Color.FromArgb(224, 188, 77));
             bottomRow.Controls.Add(expenseCard, 0, 0);
             bottomRow.Controls.Add(budgetCard, 1, 0);
+
+            var monthSelector = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(244, 246, 249),
+                Margin = new Padding(0, 4, 0, 0)
+            };
+            var monthSelectorTitle = new Label
+            {
+                Text = "Monthly Income & Expenses",
+                Dock = DockStyle.Top,
+                Height = 24,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 72, 84)
+            };
+            var monthCards = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = true,
+                BackColor = Color.Transparent,
+                Padding = Padding.Empty
+            };
+            var monthButtons = new List<Button>();
+
+            void SelectMonth(DateTime monthStart)
+            {
+                var monthName = monthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+                expenseValueLabel.Text = $"₹{SumForMonth(expenseMonthEntries, monthStart).ToString("#,##0.00", currencyFormat)}";
+                expenseCaptionLabel.Text = $"{monthName} Expenses";
+                incomeValueLabel.Text = $"₹{SumForMonth(incomeMonthEntries, monthStart).ToString("#,##0.00", currencyFormat)}";
+                incomeCaptionLabel.Text = $"{monthName} Income";
+
+                foreach (var monthButton in monthButtons)
+                {
+                    var isSelected = monthButton.Tag is DateTime buttonMonth
+                        && buttonMonth.Year == monthStart.Year
+                        && buttonMonth.Month == monthStart.Month;
+                    monthButton.BackColor = isSelected ? Color.FromArgb(79, 100, 135) : Color.White;
+                    monthButton.ForeColor = isSelected ? Color.White : Color.FromArgb(60, 72, 84);
+                }
+            }
+
+            for (var monthOffset = 0; monthOffset < 6; monthOffset++)
+            {
+                var monthStart = currentMonthStart.AddMonths(-monthOffset);
+                var monthButton = new Button
+                {
+                    Text = monthStart.ToString("MMM yyyy", CultureInfo.InvariantCulture),
+                    Tag = monthStart,
+                    Width = 112,
+                    Height = 34,
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.White,
+                    ForeColor = Color.FromArgb(60, 72, 84),
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                    Margin = new Padding(0, 0, 8, 0),
+                    Cursor = Cursors.Hand
+                };
+                monthButton.FlatAppearance.BorderColor = Color.FromArgb(215, 222, 230);
+                monthButton.FlatAppearance.BorderSize = 1;
+                monthButton.Click += (_, _) => SelectMonth(monthStart);
+                monthButtons.Add(monthButton);
+                monthCards.Controls.Add(monthButton);
+            }
+
+            monthSelector.Controls.Add(monthCards);
+            monthSelector.Controls.Add(monthSelectorTitle);
+            SelectMonth(currentMonthStart);
 
             var journalHealth = CreateJournalHealthCard(() =>
             {
@@ -423,7 +501,7 @@ namespace RepairAndMaintenanceApp
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 5,
+                RowCount = 6,
                 BackColor = Color.FromArgb(244, 246, 249),
                 Margin = Padding.Empty,
                 Padding = Padding.Empty
@@ -433,10 +511,12 @@ namespace RepairAndMaintenanceApp
             dashboardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 240F));
             dashboardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
             dashboardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 240F));
+            dashboardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72F));
             dashboardLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             dashboardLayout.Controls.Add(welcomeRow, 0, 0);
             dashboardLayout.Controls.Add(statsLayout, 0, 1);
             dashboardLayout.Controls.Add(bottomRow, 0, 3);
+            dashboardLayout.Controls.Add(monthSelector, 0, 4);
             content.Controls.Add(dashboardLayout);
 
             root.Controls.Add(content);
@@ -533,9 +613,7 @@ namespace RepairAndMaintenanceApp
                         Color.FromArgb(39, 83, 99),
                         Color.FromArgb(61, 127, 139),
                         LinearGradientMode.Horizontal);
-                    using var accentBrush = new SolidBrush(accentColor);
                     e.Graphics.FillRectangle(backgroundBrush, panel.ClientRectangle);
-                    e.Graphics.FillRectangle(accentBrush, 0, 0, 5, panel.Height);
                 };
             }
 
@@ -620,7 +698,7 @@ namespace RepairAndMaintenanceApp
             return panel;
         }
 
-        private static Panel CreateSmallLedgerCard(string value, string label, Color color, string glyph, Color? backgroundColor = null, Color? accentColor = null)
+        private static (Panel Card, Label ValueLabel, Label CaptionLabel) CreateSmallLedgerCard(string value, string label, Color color, string glyph, Color? backgroundColor = null, Color? accentColor = null)
         {
             var panel = new Panel
             {
@@ -711,7 +789,7 @@ namespace RepairAndMaintenanceApp
             layout.Controls.Add(textLayout, 2, 0);
 
             panel.Controls.Add(layout);
-            return panel;
+            return (panel, valueLabel, labelText);
         }
 
         private static Panel CreateJournalHealthCard(Action navigateToJournal)

@@ -95,5 +95,7 @@ C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndM
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndMaintenanceApp.runtimeconfig.json
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndMaintenanceApp.dll
 C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build-check\RepairAndMaintenanceApp.pdb
+C:\Users\binom\AppData\Local\Temp\RepairAndMaintenanceApp-build\Resources\white-home.png
+k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\bin\Debug\net8.0-windows\Resources\white-Home.png
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\refint\RepairAndMaintenanceApp.dll
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\ref\RepairAndMaintenanceApp.dll

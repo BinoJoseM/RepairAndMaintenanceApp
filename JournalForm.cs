@@ -68,7 +68,7 @@ namespace RepairAndMaintenanceApp
 
             var particularsBox = new ComboBox
             {
-                Width = 190,
+                Width = 290,
                 Location = new Point(306, 14),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -76,8 +76,8 @@ namespace RepairAndMaintenanceApp
             particularsBox.Items.AddRange(JournalTransactionDataAccess.GetDistinctParticulars().Cast<object>().ToArray());
             particularsBox.SelectedIndex = 0;
 
-            var searchButton = CreateActionButton("Search", 512, 13, 90, Color.FromArgb(32, 74, 140), Color.White);
-            var clearButton = CreateActionButton("Clear", 612, 13, 80, Color.FromArgb(232, 236, 240), Color.FromArgb(60, 72, 84));
+            var searchButton = CreateActionButton("Search", 612, 13, 90, Color.FromArgb(32, 74, 140), Color.White);
+            var clearButton = CreateActionButton("Clear", 712, 13, 80, Color.FromArgb(232, 236, 240), Color.FromArgb(60, 72, 84));
 
             var grid = new DataGridView
             {

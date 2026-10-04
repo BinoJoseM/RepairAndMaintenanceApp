@@ -214,8 +214,8 @@ namespace RepairAndMaintenanceApp
                 Font = new Font("Segoe UI", 10F)
             };
             var categoryBox = CreateDropDown(205, 56, 210, SqliteDataAccess.GetCategoryNames("Expense").ToArray());
-            var particularsBox = CreateEditorDropDown(435, 56, 250);
-            var amountBox = CreateEditorTextBox(715, 56, 150);
+            var particularsBox = CreateEditorDropDown(435, 56, 280);
+            var amountBox = CreateEditorTextBox(745, 56, 120);
 
             void LoadParticularOptions(string? selectedParticular = null)
             {
@@ -282,8 +282,8 @@ namespace RepairAndMaintenanceApp
 
             AddEditorLabel(editorPanel, "Date", 14, 31, 165);
             AddEditorLabel(editorPanel, "Category", 205, 31, 210);
-            AddEditorLabel(editorPanel, "Particulars", 435, 31, 250);
-            AddEditorLabel(editorPanel, "Amount", 715, 31, 150);
+            AddEditorLabel(editorPanel, "Particulars", 435, 31, 280);
+            AddEditorLabel(editorPanel, "Amount", 745, 31, 120);
 
             var addNewButton = CreateActionButton("Add New", 350, 116, 120, Color.FromArgb(70, 120, 75), Color.White, 38);
             var saveButton = CreateActionButton("Save", 480, 116, 120, Color.FromArgb(79, 100, 135), Color.White, 38);
