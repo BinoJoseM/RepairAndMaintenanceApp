@@ -41,7 +41,6 @@ K:\Projects\RepairAndMaintenanceApp\my-winforms-app\obj\Debug\net8.0-windows\ref
 K:\Projects\RepairAndMaintenanceApp\my-winforms-app\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.pdb
 K:\Projects\RepairAndMaintenanceApp\my-winforms-app\obj\Debug\net8.0-windows\RepairAndMaintenanceApp.genruntimeconfig.cache
 K:\Projects\RepairAndMaintenanceApp\my-winforms-app\obj\Debug\net8.0-windows\ref\RepairAndMaintenanceApp.dll
-k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\bin\Debug\net8.0-windows\RepairMaintenanceAccounting.db
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\bin\Debug\net8.0-windows\RepairAndMaintenanceApp.deps.json
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\bin\Debug\net8.0-windows\RepairAndMaintenanceApp.runtimeconfig.json
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\bin\Debug\net8.0-windows\RepairAndMaintenanceApp.dll

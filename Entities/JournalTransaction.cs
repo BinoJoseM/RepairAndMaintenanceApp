@@ -5,6 +5,7 @@ namespace RepairAndMaintenanceApp.Entities
     public class JournalTransaction
     {
         public int Id { get; set; }
+        public int? CategoryId { get; set; }
         public int? ParticularId { get; set; }
         public DateTime? EntryDate { get; set; }
         public string Particulars { get; set; } = string.Empty;

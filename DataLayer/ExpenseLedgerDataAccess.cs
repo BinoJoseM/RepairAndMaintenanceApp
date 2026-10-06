@@ -81,6 +81,7 @@ namespace RepairAndMaintenanceApp.DataLayer
                 connection,
                 transaction,
                 entry.EntryDate,
+                categoryId,
                 particularId,
                 entry.Amount,
                 0m,
@@ -119,11 +120,12 @@ namespace RepairAndMaintenanceApp.DataLayer
             var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
 
             var journalEntry = entry.JournalId.HasValue
-                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, particularId, entry.Amount, 0m)
+                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, categoryId, particularId, entry.Amount, 0m)
                 : JournalTransactionDataAccess.AddFromLedger(
                     connection,
                     transaction,
                     entry.EntryDate,
+                    categoryId,
                     particularId,
                     entry.Amount,
                     0m,

@@ -181,6 +181,7 @@ namespace RepairAndMaintenanceApp.DataAccess
                 CREATE TABLE IF NOT EXISTS JournalTransactions (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     EntryDate TEXT NULL,
+                    CategoryId INTEGER NULL REFERENCES CategoryMaster(Id),
                     ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
                     Debit REAL NOT NULL DEFAULT 0,
                     Credit REAL NOT NULL DEFAULT 0,
@@ -267,6 +268,7 @@ namespace RepairAndMaintenanceApp.DataAccess
             }
 
             BackfillJournalTransactionParticularIds();
+            BackfillJournalTransactionCategoryIds();
             BackfillBalanceSheetParticularIds();
             BackfillBalanceSheetJournalIds();
             BackfillBalanceSheetParticularIds();
@@ -518,6 +520,7 @@ namespace RepairAndMaintenanceApp.DataAccess
             MigrateLedgerParticularColumn(connection, transaction, "IncomeLedgerEntries");
             EnsureLedgerJournalIdColumns(connection, transaction);
             MigrateJournalTransactionParticularColumn(connection, transaction);
+            EnsureJournalTransactionCategoryIdColumn(connection, transaction);
             EnsureBalanceSheetEntryDateColumn(connection, transaction);
             EnsureBalanceSheetJournalIdColumn(connection, transaction);
             MigrateBalanceSheetParticularColumn(connection, transaction);
@@ -651,6 +654,52 @@ namespace RepairAndMaintenanceApp.DataAccess
             dropLegacyColumn.Transaction = transaction;
             dropLegacyColumn.CommandText = "ALTER TABLE JournalTransactions DROP COLUMN Particulars";
             dropLegacyColumn.ExecuteNonQuery();
+        }
+
+        private static void EnsureJournalTransactionCategoryIdColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "JournalTransactions")
+                || HasColumn(connection, transaction, "JournalTransactions", "CategoryId"))
+            {
+                return;
+            }
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "ALTER TABLE JournalTransactions ADD COLUMN CategoryId INTEGER NULL REFERENCES CategoryMaster(Id)";
+            command.ExecuteNonQuery();
+        }
+
+        private static void BackfillJournalTransactionCategoryIds()
+        {
+            using var connection = new SqliteConnection($"Data Source={DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                UPDATE JournalTransactions
+                SET CategoryId = COALESCE(
+                    (
+                        SELECT CASE WHEN COUNT(*) = 1 THEN MAX(linked.CategoryId) END
+                        FROM (
+                            SELECT CategoryId FROM IncomeLedgerEntries
+                            WHERE JournalId = JournalTransactions.Id AND CategoryId IS NOT NULL
+                            UNION
+                            SELECT CategoryId FROM ExpenseLedgerEntries
+                            WHERE JournalId = JournalTransactions.Id AND CategoryId IS NOT NULL
+                        ) linked
+                    ),
+                    (
+                        SELECT pm.CategoryId
+                        FROM ParticularMaster pm
+                        WHERE pm.Id = JournalTransactions.ParticularId
+                    )
+                )
+                WHERE CategoryId IS NULL
+            ";
+            command.ExecuteNonQuery();
+            transaction.Commit();
         }
 
         private static void EnsureBalanceSheetJournalIdColumn(SqliteConnection connection, SqliteTransaction transaction)
@@ -1309,9 +1358,12 @@ namespace RepairAndMaintenanceApp.DataAccess
                 using var insert = connection.CreateCommand();
                 insert.Transaction = transaction;
                 insert.CommandText = @"
-                    INSERT INTO JournalTransactions (EntryDate, ParticularId, Debit, Credit, SourceFile, SourceRow)
+                    INSERT INTO JournalTransactions (EntryDate, CategoryId, ParticularId, Debit, Credit, SourceFile, SourceRow)
                     VALUES (
                         @entryDate,
+                        (SELECT CASE WHEN COUNT(*) = 1 THEN MIN(CategoryId) END
+                         FROM ParticularMaster
+                         WHERE lower(trim(ParticularName)) = lower(trim(@particulars))),
                         (SELECT CASE WHEN COUNT(*) = 1 THEN MIN(Id) END
                          FROM ParticularMaster
                          WHERE lower(trim(ParticularName)) = lower(trim(@particulars))),

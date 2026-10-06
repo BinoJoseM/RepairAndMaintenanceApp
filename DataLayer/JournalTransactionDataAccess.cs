@@ -13,6 +13,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             SqliteConnection connection,
             SqliteTransaction transaction,
             DateTime? entryDate,
+            long? categoryId,
             long? particularId,
             decimal debit,
             decimal credit,
@@ -27,10 +28,11 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = @"
-                INSERT INTO JournalTransactions (EntryDate, ParticularId, Debit, Credit, SourceFile, SourceRow)
-                VALUES (@entryDate, @particularId, @debit, @credit, @sourceFile, @sourceRow)
+                INSERT INTO JournalTransactions (EntryDate, CategoryId, ParticularId, Debit, Credit, SourceFile, SourceRow)
+                VALUES (@entryDate, @categoryId, @particularId, @debit, @credit, @sourceFile, @sourceRow)
             ";
             command.Parameters.AddWithValue("@entryDate", entryDate.HasValue ? entryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DBNull.Value);
+            command.Parameters.AddWithValue("@categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
             command.Parameters.AddWithValue("@debit", debit);
             command.Parameters.AddWithValue("@credit", credit);
@@ -49,6 +51,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             SqliteTransaction transaction,
             int journalId,
             DateTime? entryDate,
+            long? categoryId,
             long? particularId,
             decimal debit,
             decimal credit)
@@ -75,6 +78,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             command.CommandText = @"
                 UPDATE JournalTransactions
                 SET EntryDate = @entryDate,
+                    CategoryId = @categoryId,
                     ParticularId = @particularId,
                     Debit = @debit,
                     Credit = @credit
@@ -82,6 +86,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             ";
             command.Parameters.AddWithValue("@id", journalId);
             command.Parameters.AddWithValue("@entryDate", entryDate.HasValue ? entryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DBNull.Value);
+            command.Parameters.AddWithValue("@categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
             command.Parameters.AddWithValue("@debit", debit);
             command.Parameters.AddWithValue("@credit", credit);
@@ -98,7 +103,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             connection.Open();
 
             var sql = @"
-                SELECT jt.Id, jt.ParticularId, jt.EntryDate, COALESCE(pm.ParticularName, ''),
+                SELECT jt.Id, jt.CategoryId, jt.ParticularId, jt.EntryDate, COALESCE(pm.ParticularName, ''),
                     jt.Debit, jt.Credit, jt.SourceFile, jt.SourceRow
                 FROM JournalTransactions jt
                 LEFT JOIN ParticularMaster pm ON pm.Id = jt.ParticularId
@@ -138,17 +143,18 @@ namespace RepairAndMaintenanceApp.DataLayer
                 transactions.Add(new JournalTransaction
                 {
                     Id = reader.GetInt32(0),
-                    ParticularId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    EntryDate = reader.IsDBNull(2)
+                    CategoryId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    ParticularId = reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                    EntryDate = reader.IsDBNull(3)
                         ? null
-                        : DateTime.TryParse(reader.GetString(2), CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate)
+                        : DateTime.TryParse(reader.GetString(3), CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate)
                             ? entryDate
                             : null,
-                    Particulars = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-                    Debit = reader.IsDBNull(4) ? 0m : Convert.ToDecimal(reader.GetValue(4)),
-                    Credit = reader.IsDBNull(5) ? 0m : Convert.ToDecimal(reader.GetValue(5)),
-                    SourceFile = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
-                    SourceRow = reader.IsDBNull(7) ? 0 : reader.GetInt32(7)
+                    Particulars = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                    Debit = reader.IsDBNull(5) ? 0m : Convert.ToDecimal(reader.GetValue(5)),
+                    Credit = reader.IsDBNull(6) ? 0m : Convert.ToDecimal(reader.GetValue(6)),
+                    SourceFile = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
+                    SourceRow = reader.IsDBNull(8) ? 0 : reader.GetInt32(8)
                 });
             }
 
