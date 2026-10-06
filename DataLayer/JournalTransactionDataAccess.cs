@@ -161,6 +161,115 @@ namespace RepairAndMaintenanceApp.DataLayer
             return transactions;
         }
 
+        public static List<DateTime> GetDistinctMonths()
+        {
+            var months = new List<DateTime>();
+
+            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
+            connection.Open();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT DISTINCT strftime('%Y-%m', EntryDate)
+                FROM JournalTransactions
+                WHERE EntryDate IS NOT NULL AND strftime('%Y-%m', EntryDate) IS NOT NULL
+                ORDER BY 1";
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (DateTime.TryParseExact(reader.GetString(0), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
+                {
+                    months.Add(month);
+                }
+            }
+
+            return months;
+        }
+
+        public static List<BalanceSheetItems> GetMonthlyBalanceSheet(DateTime selectedMonth)
+        {
+            var monthStart = new DateTime(selectedMonth.Year, selectedMonth.Month, 1);
+            return BuildBalanceSheet(monthStart, GetAll(monthStart));
+        }
+
+        public static List<BalanceSheetItems> GetYearlyBalanceSheet(int year)
+        {
+            var yearRows = GetAll()
+                .Where(x => x.EntryDate.HasValue && x.EntryDate.Value.Year == year)
+                .ToList();
+            return BuildBalanceSheet(new DateTime(year, 1, 1), yearRows);
+        }
+
+        public static List<int> GetDistinctYears()
+        {
+            return GetDistinctMonths().Select(month => month.Year).Distinct().OrderBy(year => year).ToList();
+        }
+
+        private static List<BalanceSheetItems> BuildBalanceSheet(DateTime monthStart, List<JournalTransaction> monthRows)
+        {
+            decimal openingNet;
+            using (var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT COALESCE(SUM(jt.Debit - jt.Credit), 0)
+                    FROM JournalTransactions jt
+                    LEFT JOIN ParticularMaster pm ON pm.Id = jt.ParticularId
+                    WHERE jt.EntryDate IS NOT NULL
+                        AND date(jt.EntryDate) < date(@monthStart)
+                        AND lower(COALESCE(pm.ParticularName, '')) NOT LIKE '%open balance%'";
+                command.Parameters.AddWithValue("@monthStart", monthStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                openingNet = Convert.ToDecimal(command.ExecuteScalar());
+            }
+
+            var monthlyDebit = monthRows.Sum(x => x.Debit);
+            var monthlyCredit = monthRows.Sum(x => x.Credit);
+            var totalDebit = Math.Max(openingNet, 0m) + monthlyDebit;
+            var totalCredit = Math.Max(-openingNet, 0m) + monthlyCredit;
+            var closingDifference = totalDebit - totalCredit;
+            var closingDebit = Math.Max(-closingDifference, 0m);
+            var closingCredit = Math.Max(closingDifference, 0m);
+
+            var rows = new List<BalanceSheetItems>
+            {
+                new()
+                {
+                    EntryDate = monthStart,
+                    Particulars = "Opening Balance",
+                    Debit = Math.Max(openingNet, 0m),
+                    Credit = Math.Max(-openingNet, 0m),
+                    LineType = "Opening Balance"
+                }
+            };
+
+            rows.AddRange(monthRows.Select(x => new BalanceSheetItems
+            {
+                JournalId = x.Id,
+                ParticularId = x.ParticularId,
+                EntryDate = x.EntryDate,
+                Particulars = x.Particulars,
+                Debit = x.Debit,
+                Credit = x.Credit,
+                LineType = x.Debit > 0m ? "Income" : "Expense",
+                SourceFile = x.SourceFile,
+                SourceRow = x.SourceRow
+            }));
+
+            rows.Add(new BalanceSheetItems { Particulars = "Total", Debit = totalDebit, Credit = totalCredit, LineType = "Total" });
+            rows.Add(new BalanceSheetItems { Particulars = "Closing Balance", Debit = closingDebit, Credit = closingCredit, LineType = "Closing Balance" });
+            rows.Add(new BalanceSheetItems
+            {
+                Particulars = "GRAND TOTAL",
+                Debit = totalDebit + closingDebit,
+                Credit = totalCredit + closingCredit,
+                LineType = "Grand Total"
+            });
+
+            return rows;
+        }
+
         public static List<JournalParticularBalance> GetMonthlyBalances(DateTime selectedMonth, string? particulars = null)
         {
             var balances = new List<JournalParticularBalance>();

@@ -21,6 +21,11 @@ namespace RepairAndMaintenanceApp.ServiceLayer
             CategoryMasterDataAccess.Update(category);
         }
 
+        public static bool IsUsedInParticulars(int id)
+        {
+            return CategoryMasterDataAccess.IsUsedInParticulars(id);
+        }
+
         public static void Delete(int id)
         {
             CategoryMasterDataAccess.Delete(id);

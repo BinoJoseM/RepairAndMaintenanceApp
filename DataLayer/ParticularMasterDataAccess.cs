@@ -108,8 +108,23 @@ namespace RepairAndMaintenanceApp.DataLayer
             command.ExecuteNonQuery();
         }
 
+        public static bool IsUsedInJournalTransactions(int id)
+        {
+            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM JournalTransactions WHERE ParticularId = @id";
+            command.Parameters.AddWithValue("@id", id);
+            return Convert.ToInt32(command.ExecuteScalar()) > 0;
+        }
+
         public static void Delete(int id)
         {
+            if (IsUsedInJournalTransactions(id))
+            {
+                throw new InvalidOperationException("This particular is used in journal transactions and cannot be deleted.");
+            }
+
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
             using var command = connection.CreateCommand();

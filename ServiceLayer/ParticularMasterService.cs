@@ -31,6 +31,11 @@ namespace RepairAndMaintenanceApp.ServiceLayer
             ParticularMasterDataAccess.Update(particular);
         }
 
+        public static bool IsUsedInJournalTransactions(int id)
+        {
+            return ParticularMasterDataAccess.IsUsedInJournalTransactions(id);
+        }
+
         public static void Delete(int id)
         {
             ParticularMasterDataAccess.Delete(id);

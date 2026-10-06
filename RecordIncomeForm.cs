@@ -244,11 +244,11 @@ namespace RepairAndMaintenanceApp
 
                 if (category == null)
                 {
-                    MessageBox.Show("Select a valid income category before adding a particular.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AppMessageBox.Show("Select a valid income category before adding a particular.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
-                var confirmation = MessageBox.Show(
+                var confirmation = AppMessageBox.Show(
                     $"'{particularName}' is not listed for '{categoryName}'. Add it to this category?",
                     "Add Particular",
                     MessageBoxButtons.YesNo,
@@ -316,13 +316,13 @@ namespace RepairAndMaintenanceApp
             {
                 if (categoryBox.SelectedIndex < 0 || string.IsNullOrWhiteSpace(particularsBox.Text) || string.IsNullOrWhiteSpace(amountBox.Text))
                 {
-                    MessageBox.Show("Select a category and particular, then enter the amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AppMessageBox.Show("Select a category and particular, then enter the amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
                 if (!decimal.TryParse(amountBox.Text.Replace("$", string.Empty).Replace(",", string.Empty), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
                 {
-                    MessageBox.Show("Enter a valid amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AppMessageBox.Show("Enter a valid amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
@@ -360,7 +360,7 @@ namespace RepairAndMaintenanceApp
 
                 IncomeService.SaveManualEntry(entry);
                 LoadGridData();
-                MessageBox.Show("Income record saved.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Income record saved.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
             updateButton.Click += (_, _) =>
@@ -397,7 +397,7 @@ namespace RepairAndMaintenanceApp
 
                 IncomeService.UpdateManualEntry(updatedEntry);
                 LoadGridData();
-                MessageBox.Show("Income record updated.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Income record updated.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
             deleteButton.Click += (_, _) =>
@@ -413,12 +413,12 @@ namespace RepairAndMaintenanceApp
                     return;
                 }
 
-                var confirmation = MessageBox.Show("Delete the selected income record?", "Delete Income Record", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                var confirmation = AppMessageBox.Show("Delete the selected income record?", "Delete Income Record", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (confirmation == DialogResult.Yes)
                 {
                     IncomeService.Delete(selectedRowId.Value);
                     LoadGridData();
-                    MessageBox.Show("Income record deleted.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    AppMessageBox.Show("Income record deleted.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
 

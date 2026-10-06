@@ -132,7 +132,7 @@ namespace RepairAndMaintenanceApp
             }
 
             File.WriteAllText(dialog.FileName, builder.ToString(), Encoding.UTF8);
-            MessageBox.Show("Report exported for Excel.", "Reports", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AppMessageBox.Show("Report exported for Excel.", "Reports", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void ExportPdf()

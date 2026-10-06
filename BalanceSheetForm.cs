@@ -65,10 +65,18 @@ namespace RepairAndMaintenanceApp
             };
 
             const string currentMonthFilter = "Current Month";
-            var statementItems = new List<string> { currentMonthFilter, "All statements" };
-            statementItems.AddRange(BalanceSheetService.GetAll().Select(x => x.StatementTitle).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x));
-            statementBox.Items.AddRange(statementItems.Distinct().ToArray());
-            statementBox.SelectedIndex = 0;
+            var journalMonths = JournalTransactionService.GetDistinctMonths();
+            statementBox.Items.AddRange(journalMonths
+                .Select(month => (object)$"Balance Sheet of the {month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)}")
+                .ToArray());
+            const string yearStatementPrefix = "Balance Sheet of the Year ";
+            statementBox.Items.AddRange(JournalTransactionService.GetDistinctYears()
+                .Select(year => (object)$"{yearStatementPrefix}{year}")
+                .ToArray());
+            var currentMonthIndex = journalMonths.FindIndex(month => month.Year == DateTime.Now.Year && month.Month == DateTime.Now.Month);
+            statementBox.SelectedIndex = statementBox.Items.Count == 0
+                ? -1
+                : currentMonthIndex >= 0 ? currentMonthIndex : statementBox.Items.Count - 1;
 
             var searchButton = new Button
             {
@@ -160,6 +168,7 @@ namespace RepairAndMaintenanceApp
             grid.Columns[3].FillWeight = 17;
             grid.Columns[4].FillWeight = 17;
             grid.Columns[0].Visible = false;
+            grid.Columns[1].Visible = false;
             grid.Columns[0].DefaultCellStyle.Format = "dd-MMM-yyyy";
             grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -224,74 +233,15 @@ namespace RepairAndMaintenanceApp
                 }
 
                 List<BalanceSheetItems> rows;
-                if (selectedMonth.HasValue)
+                if (statementFilter is not null
+                    && statementFilter.StartsWith(yearStatementPrefix, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(statementFilter.Substring(yearStatementPrefix.Length), out var selectedYear))
                 {
-                    var monthStart = selectedMonth.Value;
-                    var nextMonthStart = monthStart.AddMonths(1);
-                    allRows ??= BalanceSheetService.GetAll();
-
-                    bool IsSummaryRow(BalanceSheetItems row) =>
-                        row.LineType.Equals("Total", StringComparison.OrdinalIgnoreCase)
-                        || row.LineType.Equals("Grand Total", StringComparison.OrdinalIgnoreCase)
-                        || row.LineType.Equals("GrandTotal", StringComparison.OrdinalIgnoreCase)
-                        || row.LineType.Equals("Opening Balance", StringComparison.OrdinalIgnoreCase)
-                        || row.LineType.Equals("Closing Balance", StringComparison.OrdinalIgnoreCase)
-                        || row.LineType.Equals("ClosingBalance", StringComparison.OrdinalIgnoreCase)
-                        || row.Particulars.Equals("Total", StringComparison.OrdinalIgnoreCase)
-                        || row.Particulars.Equals("Grand Total", StringComparison.OrdinalIgnoreCase)
-                        || row.Particulars.Equals("Opening Balance", StringComparison.OrdinalIgnoreCase)
-                        || row.Particulars.StartsWith("Closing Balance", StringComparison.OrdinalIgnoreCase);
-
-                    var openingNet = allRows
-                        .Where(x => x.EntryDate.HasValue && x.EntryDate.Value < monthStart && !IsSummaryRow(x))
-                        .Sum(x => x.Debit - x.Credit);
-                    var monthRows = allRows
-                        .Where(x => x.EntryDate.HasValue
-                            && x.EntryDate.Value >= monthStart
-                            && x.EntryDate.Value < nextMonthStart
-                            && !IsSummaryRow(x))
-                        .OrderBy(x => x.SourceRow)
-                        .ToList();
-                    var monthlyDebit = monthRows.Sum(x => x.Debit);
-                    var monthlyCredit = monthRows.Sum(x => x.Credit);
-                    var totalDebit = Math.Max(openingNet, 0m) + monthlyDebit;
-                    var totalCredit = Math.Max(-openingNet, 0m) + monthlyCredit;
-                    var closingDifference = totalDebit - totalCredit;
-
-                    rows = new List<BalanceSheetItems>
-                    {
-                        new()
-                        {
-                            EntryDate = monthStart,
-                            Particulars = "Opening Balance",
-                            Debit = Math.Max(openingNet, 0m),
-                            Credit = Math.Max(-openingNet, 0m),
-                            LineType = "Opening Balance"
-                        }
-                    };
-                    rows.AddRange(monthRows);
-                    rows.Add(new BalanceSheetItems
-                    {
-                        Particulars = "Total",
-                        Debit = totalDebit,
-                        Credit = totalCredit,
-                        LineType = "Total"
-                    });
-
-                    rows.Add(new BalanceSheetItems
-                    {
-                        Particulars = "Closing Balance",
-                        Debit = Math.Max(-closingDifference, 0m),
-                        Credit = Math.Max(closingDifference, 0m),
-                        LineType = "Closing Balance"
-                    });
-                    rows.Add(new BalanceSheetItems
-                    {
-                        Particulars = "GRAND TOTAL",
-                        Debit = totalDebit + Math.Max(-closingDifference, 0m),
-                        Credit = totalCredit + Math.Max(closingDifference, 0m),
-                        LineType = "Grand Total"
-                    });
+                    rows = JournalTransactionService.GetYearlyBalanceSheet(selectedYear);
+                }
+                else if (selectedMonth.HasValue)
+                {
+                    rows = JournalTransactionService.GetMonthlyBalanceSheet(selectedMonth.Value);
                 }
                 else
                 {
@@ -329,7 +279,9 @@ namespace RepairAndMaintenanceApp
             };
             clearButton.Click += (_, _) =>
             {
-                statementBox.SelectedIndex = 0;
+                statementBox.SelectedIndex = statementBox.Items.Count == 0
+                    ? -1
+                    : currentMonthIndex >= 0 ? currentMonthIndex : statementBox.Items.Count - 1;
                 LoadGridData(statementBox.SelectedItem?.ToString());
                 UpdateSheetHeader();
             };

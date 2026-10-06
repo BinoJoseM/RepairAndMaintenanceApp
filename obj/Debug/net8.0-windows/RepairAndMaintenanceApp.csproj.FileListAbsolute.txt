@@ -191,3 +191,9 @@ K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\JournalHeaderVal
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\JournalHeaderValidation\bin\Debug\net8.0-windows\runtimes\win-x86\native\e_sqlite3.dll
 k:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\refint\RepairAndMaintenanceApp.dll
 K:\Projects\RepairAndMaintenanceApp\RepairAndMaintenanceApp\obj\Debug\net8.0-windows\ref\RepairAndMaintenanceApp.dll
+C:\Users\binom\AppData\Local\Temp\bsout\Resources\white-Home.png
+C:\Users\binom\AppData\Local\Temp\bsout\RepairAndMaintenanceApp.exe
+C:\Users\binom\AppData\Local\Temp\bsout\RepairAndMaintenanceApp.deps.json
+C:\Users\binom\AppData\Local\Temp\bsout\RepairAndMaintenanceApp.runtimeconfig.json
+C:\Users\binom\AppData\Local\Temp\bsout\RepairAndMaintenanceApp.dll
+C:\Users\binom\AppData\Local\Temp\bsout\RepairAndMaintenanceApp.pdb
