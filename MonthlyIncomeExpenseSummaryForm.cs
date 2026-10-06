@@ -67,6 +67,7 @@ namespace RepairAndMaintenanceApp
             };
             searchButton.FlatAppearance.BorderSize = 0;
 
+            var pdfButton = GridPdfExporter.CreateButton(376, 13);
             var grid = new DataGridView
             {
                 Location = new Point(24, 140),
@@ -132,14 +133,18 @@ namespace RepairAndMaintenanceApp
                         grid.Rows[rowIndex].DefaultCellStyle.ForeColor = Color.FromArgb(20, 29, 38);
                     }
                 }
+
+                pdfButton.Enabled = grid.Rows.Count > 0;
             }
 
+            pdfButton.Click += (_, _) => GridPdfExporter.Export(this, grid, title.Text);
             searchButton.Click += (_, _) => LoadSummary();
             monthPicker.ValueChanged += (_, _) => LoadSummary();
 
             filterPanel.Controls.Add(monthLabel);
             filterPanel.Controls.Add(monthPicker);
             filterPanel.Controls.Add(searchButton);
+            filterPanel.Controls.Add(pdfButton);
             Controls.Add(title);
             Controls.Add(filterPanel);
             Controls.Add(grid);

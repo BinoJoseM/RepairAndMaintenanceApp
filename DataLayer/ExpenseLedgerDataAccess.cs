@@ -83,8 +83,8 @@ namespace RepairAndMaintenanceApp.DataLayer
                 entry.EntryDate,
                 categoryId,
                 particularId,
-                entry.Amount,
                 0m,
+                entry.Amount,
                 string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
             entry.JournalId = journalEntry.JournalId;
             entry.SourceCell = $"Manual-{journalEntry.JournalId}";
@@ -96,8 +96,8 @@ namespace RepairAndMaintenanceApp.DataLayer
                 journalEntry.JournalId,
                 entry.EntryDate,
                 entry.Particulars,
-                entry.Amount,
                 0m,
+                entry.Amount,
                 "Expense",
                 journalEntry.SourceFile,
                 journalEntry.SourceRow);
@@ -120,15 +120,15 @@ namespace RepairAndMaintenanceApp.DataLayer
             var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
 
             var journalEntry = entry.JournalId.HasValue
-                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, categoryId, particularId, entry.Amount, 0m)
+                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, categoryId, particularId, 0m, entry.Amount)
                 : JournalTransactionDataAccess.AddFromLedger(
                     connection,
                     transaction,
                     entry.EntryDate,
                     categoryId,
                     particularId,
-                    entry.Amount,
                     0m,
+                    entry.Amount,
                     string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
             entry.JournalId = journalEntry.JournalId;
 
@@ -143,8 +143,8 @@ namespace RepairAndMaintenanceApp.DataLayer
                 journalEntry.JournalId,
                 entry.EntryDate,
                 entry.Particulars,
-                entry.Amount,
                 0m,
+                entry.Amount,
                 "Expense",
                 journalEntry.SourceFile,
                 journalEntry.SourceRow);

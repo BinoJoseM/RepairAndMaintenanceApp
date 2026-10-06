@@ -4,6 +4,8 @@ using System.Drawing.Printing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using RepairAndMaintenanceApp.Entities;
+using RepairAndMaintenanceApp.ServiceLayer;
 
 namespace RepairAndMaintenanceApp
 {
@@ -14,6 +16,8 @@ namespace RepairAndMaintenanceApp
         private readonly DateTimePicker toDateBox;
         private readonly DataGridView grid;
         private readonly PrintDocument printDocument;
+        private int printRowIndex;
+        private int printPageNumber;
 
         public ReportForm()
         {
@@ -47,22 +51,16 @@ namespace RepairAndMaintenanceApp
                 Width = 205,
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            reportTypeBox.Items.AddRange(new object[]
-            {
-                "Income Summary",
-                "Expense Summary",
-                "Journal Activity",
-                "Category Summary"
-            });
+            reportTypeBox.Items.AddRange(ReportService.ReportNames);
             reportTypeBox.SelectedIndex = 0;
 
             AddLabel(filterPanel, "From", 245, 12);
             fromDateBox = CreateDatePicker(245, 34);
-            fromDateBox.Value = new DateTime(2026, 8, 1);
+            fromDateBox.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
 
             AddLabel(filterPanel, "To", 405, 12);
             toDateBox = CreateDatePicker(405, 34);
-            toDateBox.Value = new DateTime(2026, 8, 31);
+            toDateBox.Value = fromDateBox.Value.AddMonths(1).AddDays(-1);
 
             var generateButton = CreateButton("Generate", 575, 32, 105, Color.FromArgb(32, 74, 140), Color.White);
             var refreshButton = CreateButton("Refresh", 695, 32, 90, Color.FromArgb(232, 236, 240), Color.FromArgb(60, 72, 84));
@@ -99,6 +97,8 @@ namespace RepairAndMaintenanceApp
             Controls.Add(grid);
 
             printDocument = new PrintDocument();
+            printDocument.DefaultPageSettings.Landscape = true;
+            printDocument.BeginPrint += PrintDocument_BeginPrint;
             printDocument.PrintPage += PrintDocument_PrintPage;
 
             GenerateReport();
@@ -164,40 +164,115 @@ namespace RepairAndMaintenanceApp
             }
         }
 
+        private void PrintDocument_BeginPrint(object? sender, PrintEventArgs e)
+        {
+            printRowIndex = 0;
+            printPageNumber = 0;
+        }
+
         private void PrintDocument_PrintPage(object? sender, PrintPageEventArgs e)
         {
+            var graphics = e.Graphics!;
+            var bounds = e.MarginBounds;
+            printPageNumber++;
+
             using var titleFont = new Font("Segoe UI", 16F, FontStyle.Bold);
+            using var subtitleFont = new Font("Segoe UI", 9F);
+            using var headerFont = new Font("Segoe UI", 9F, FontStyle.Bold);
             using var bodyFont = new Font("Segoe UI", 9F);
-            var y = e.MarginBounds.Top;
-            e.Graphics!.DrawString(reportTypeBox.Text, titleFont, Brushes.Black, e.MarginBounds.Left, y);
+            using var totalFont = new Font("Segoe UI", 9F, FontStyle.Bold);
+            using var headerBrush = new SolidBrush(Color.FromArgb(79, 100, 135));
+            using var totalBrush = new SolidBrush(Color.FromArgb(232, 236, 240));
+            using var gridPen = new Pen(Color.FromArgb(190, 197, 207));
+
+            float y = bounds.Top;
+            graphics.DrawString(reportTypeBox.Text, titleFont, Brushes.Black, bounds.Left, y);
             y += 32;
-            e.Graphics!.DrawString($"Period: {fromDateBox.Value:yyyy-MM-dd} to {toDateBox.Value:yyyy-MM-dd}", bodyFont, Brushes.Black, e.MarginBounds.Left, y);
-            y += 26;
+            graphics.DrawString($"Period: {fromDateBox.Value:dd-MMM-yyyy} to {toDateBox.Value:dd-MMM-yyyy}", subtitleFont, Brushes.Black, bounds.Left, y);
+            y += 28;
 
-            var headers = GetGridHeaders();
-            e.Graphics!.DrawString(string.Join("    ", headers), bodyFont, Brushes.Black, e.MarginBounds.Left, y);
-            y += 22;
-
-            foreach (DataGridViewRow row in grid.Rows)
+            var columnCount = grid.Columns.Count;
+            if (columnCount == 0)
             {
-                var values = new string[grid.Columns.Count];
-                for (var columnIndex = 0; columnIndex < grid.Columns.Count; columnIndex++)
-                {
-                    values[columnIndex] = row.Cells[columnIndex].Value?.ToString() ?? string.Empty;
-                }
+                e.HasMorePages = false;
+                return;
+            }
 
-                e.Graphics!.DrawString(string.Join("    ", values), bodyFont, Brushes.Black, e.MarginBounds.Left, y);
-                y += 20;
-                if (y > e.MarginBounds.Bottom - 20)
+            // Column widths follow the on-screen grid, scaled to the printable width.
+            var gridWidth = 0;
+            foreach (DataGridViewColumn column in grid.Columns)
+            {
+                gridWidth += Math.Max(column.Width, 1);
+            }
+
+            var widths = new float[columnCount];
+            for (var i = 0; i < columnCount; i++)
+            {
+                widths[i] = Math.Max(grid.Columns[i].Width, 1) * (float)bounds.Width / gridWidth;
+            }
+
+            const float rowHeight = 24F;
+            const float padding = 5F;
+
+            void DrawRow(string[] values, Font font, Brush textBrush, Brush? fill, float top)
+            {
+                var x = (float)bounds.Left;
+                for (var i = 0; i < columnCount; i++)
                 {
-                    e.HasMorePages = true;
-                    return;
+                    var cell = new RectangleF(x, top, widths[i], rowHeight);
+                    if (fill != null)
+                    {
+                        graphics.FillRectangle(fill, cell);
+                    }
+
+                    graphics.DrawRectangle(gridPen, cell.X, cell.Y, cell.Width, cell.Height);
+                    using var format = new StringFormat
+                    {
+                        Alignment = grid.Columns[i].DefaultCellStyle.Alignment == DataGridViewContentAlignment.MiddleRight ? StringAlignment.Far : StringAlignment.Near,
+                        LineAlignment = StringAlignment.Center,
+                        Trimming = StringTrimming.EllipsisCharacter,
+                        FormatFlags = StringFormatFlags.NoWrap
+                    };
+                    var textBounds = new RectangleF(cell.X + padding, cell.Y, cell.Width - (2 * padding), cell.Height);
+                    graphics.DrawString(values[i], font, textBrush, textBounds, format);
+                    x += widths[i];
                 }
             }
 
+            var headers = new string[columnCount];
+            for (var i = 0; i < columnCount; i++)
+            {
+                headers[i] = grid.Columns[i].HeaderText;
+            }
+
+            DrawRow(headers, headerFont, Brushes.White, headerBrush, y);
+            y += rowHeight;
+
+            while (printRowIndex < grid.Rows.Count)
+            {
+                if (y + rowHeight > bounds.Bottom - 20)
+                {
+                    e.HasMorePages = true;
+                    graphics.DrawString($"Page {printPageNumber}", subtitleFont, Brushes.Gray, bounds.Right - 50, bounds.Bottom);
+                    return;
+                }
+
+                var row = grid.Rows[printRowIndex];
+                var values = new string[columnCount];
+                for (var i = 0; i < columnCount; i++)
+                {
+                    values[i] = row.Cells[i].Value?.ToString() ?? string.Empty;
+                }
+
+                var isTotal = row.DefaultCellStyle.Font?.Bold == true;
+                DrawRow(values, isTotal ? totalFont : bodyFont, Brushes.Black, isTotal ? totalBrush : null, y);
+                y += rowHeight;
+                printRowIndex++;
+            }
+
+            graphics.DrawString($"Page {printPageNumber}", subtitleFont, Brushes.Gray, bounds.Right - 50, bounds.Bottom);
             e.HasMorePages = false;
         }
-
         private string[] GetGridHeaders()
         {
             var headers = new string[grid.Columns.Count];
@@ -221,51 +296,37 @@ namespace RepairAndMaintenanceApp
             grid.Columns.Clear();
             grid.Rows.Clear();
 
-            switch (reportTypeBox.SelectedItem?.ToString())
+            ReportTable report;
+            try
             {
-                case "Income Summary":
-                    grid.Columns.Add("Category", "Category");
-                    grid.Columns.Add("Transactions", "Transactions");
-                    grid.Columns.Add("Total", "Total");
-                    grid.Rows.Add("Service Revenue", "3", "$9,400.00");
-                    grid.Rows.Add("Contract Revenue", "1", "$3,280.00");
-                    grid.Rows.Add("Consulting", "1", "$1,450.00");
-                    break;
+                report = ReportService.Generate(reportTypeBox.SelectedItem?.ToString() ?? string.Empty, fromDateBox.Value, toDateBox.Value);
+            }
+            catch (ArgumentException exception)
+            {
+                AppMessageBox.Show(exception.Message, "Reports", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-                case "Expense Summary":
-                    grid.Columns.Add("Category", "Category");
-                    grid.Columns.Add("Transactions", "Transactions");
-                    grid.Columns.Add("Total", "Total");
-                    grid.Rows.Add("Utilities", "1", "$750.00");
-                    grid.Rows.Add("Office", "1", "$420.00");
-                    grid.Rows.Add("Maintenance", "1", "$1,930.00");
-                    grid.Rows.Add("Insurance", "1", "$1,280.00");
-                    grid.Rows.Add("Travel", "1", "$610.00");
-                    break;
+            for (var column = 0; column < report.Headers.Count; column++)
+            {
+                var index = grid.Columns.Add($"Column{column}", report.Headers[column]);
+                if (report.NumericColumns.Contains(column))
+                {
+                    grid.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                    grid.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight;
+                }
+            }
 
-                case "Journal Activity":
-                    grid.Columns.Add("Account", "Account");
-                    grid.Columns.Add("Debits", "Debits");
-                    grid.Columns.Add("Credits", "Credits");
-                    grid.Rows.Add("Cash", "$6,200.00", "$0.00");
-                    grid.Rows.Add("Office Supplies", "$420.00", "$0.00");
-                    grid.Rows.Add("Accounts Receivable", "$0.00", "$1,450.00");
-                    grid.Rows.Add("Maintenance Expense", "$1,930.00", "$0.00");
-                    grid.Rows.Add("Bank", "$0.00", "$2,100.00");
-                    break;
-
-                default:
-                    grid.Columns.Add("Category", "Category");
-                    grid.Columns.Add("Type", "Type");
-                    grid.Columns.Add("Status", "Status");
-                    grid.Rows.Add("Service Revenue", "Income", "Active");
-                    grid.Rows.Add("Contract Revenue", "Income", "Active");
-                    grid.Rows.Add("Utilities", "Expense", "Active");
-                    grid.Rows.Add("Maintenance", "Expense", "Active");
-                    break;
+            for (var rowIndex = 0; rowIndex < report.Rows.Count; rowIndex++)
+            {
+                var gridRow = grid.Rows.Add(report.Rows[rowIndex]);
+                if (report.TotalRows.Contains(rowIndex))
+                {
+                    grid.Rows[gridRow].DefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+                    grid.Rows[gridRow].DefaultCellStyle.BackColor = Color.FromArgb(232, 236, 240);
+                }
             }
         }
-
         private static DateTimePicker CreateDatePicker(int x, int y)
         {
             return new DateTimePicker

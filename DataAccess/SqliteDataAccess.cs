@@ -272,7 +272,7 @@ namespace RepairAndMaintenanceApp.DataAccess
             BackfillBalanceSheetParticularIds();
             BackfillBalanceSheetJournalIds();
             BackfillBalanceSheetParticularIds();
-            MoveIncomeAmountsToDebit();
+            MoveLedgerAmountsToJournalSides();
             SyncCategoriesFromLedgerEntries();
             SyncRuntimeDatabaseCopy();
         }
@@ -367,8 +367,8 @@ namespace RepairAndMaintenanceApp.DataAccess
             transaction.Commit();
         }
 
-        // Idempotent: only touches income-linked rows that still hold the amount in Credit.
-        private static void MoveIncomeAmountsToDebit()
+        // Income is Dr, expense is Cr. Idempotent: only touches linked rows still on the other side.
+        private static void MoveLedgerAmountsToJournalSides()
         {
             using var connection = new SqliteConnection($"Data Source={DatabasePath}");
             connection.Open();
@@ -385,6 +385,16 @@ namespace RepairAndMaintenanceApp.DataAccess
                 SET Debit = Credit, Credit = 0
                 WHERE Credit > 0 AND Debit = 0
                     AND Id IN (SELECT JournalId FROM IncomeLedgerEntries WHERE JournalId IS NOT NULL);
+
+                UPDATE BalanceSheetItems
+                SET Credit = Debit, Debit = 0
+                WHERE Debit > 0 AND Credit = 0
+                    AND JournalId IN (SELECT JournalId FROM ExpenseLedgerEntries WHERE JournalId IS NOT NULL);
+
+                UPDATE JournalTransactions
+                SET Credit = Debit, Debit = 0
+                WHERE Debit > 0 AND Credit = 0
+                    AND Id IN (SELECT JournalId FROM ExpenseLedgerEntries WHERE JournalId IS NOT NULL);
             ";
             command.ExecuteNonQuery();
             transaction.Commit();

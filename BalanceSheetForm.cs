@@ -104,6 +104,7 @@ namespace RepairAndMaintenanceApp
             };
             clearButton.FlatAppearance.BorderSize = 0;
 
+            var pdfButton = GridPdfExporter.CreateButton(544, 13);
             var grid = new DataGridView
             {
                 Location = new Point(24, 135),
@@ -268,8 +269,11 @@ namespace RepairAndMaintenanceApp
                     grid.Rows[rowIndex].Cells[3].Style.ForeColor = Color.FromArgb(18, 60, 98);
                     grid.Rows[rowIndex].Cells[4].Style.ForeColor = Color.FromArgb(18, 60, 98);
                 }
+
+                pdfButton.Enabled = grid.Rows.Count > 0;
             }
 
+            pdfButton.Click += (_, _) => GridPdfExporter.Export(this, grid, sheetTitle.Text);
             statementBox.SelectedIndexChanged += (_, _) => UpdateSheetHeader();
             searchButton.Click += (_, _) =>
             {
@@ -293,6 +297,7 @@ namespace RepairAndMaintenanceApp
             searchPanel.Controls.Add(statementBox);
             searchPanel.Controls.Add(searchButton);
             searchPanel.Controls.Add(clearButton);
+            searchPanel.Controls.Add(pdfButton);
 
             Controls.Add(sheetTitle);
             Controls.Add(searchPanel);

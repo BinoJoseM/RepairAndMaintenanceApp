@@ -79,6 +79,7 @@ namespace RepairAndMaintenanceApp
             var searchButton = CreateActionButton("Search", 612, 13, 90, Color.FromArgb(32, 74, 140), Color.White);
             var clearButton = CreateActionButton("Clear", 712, 13, 80, Color.FromArgb(232, 236, 240), Color.FromArgb(60, 72, 84));
 
+            var pdfButton = GridPdfExporter.CreateButton(802, 13);
             var grid = new DataGridView
             {
                 Dock = DockStyle.Fill,
@@ -207,6 +208,8 @@ namespace RepairAndMaintenanceApp
             tabs.TabPages.Add(transactionsTab);
             tabs.TabPages.Add(balancesTab);
 
+            var hasTransactions = false;
+
             void LoadTransactions()
             {
                 var selectedMonth = monthPicker.Value;
@@ -275,6 +278,14 @@ namespace RepairAndMaintenanceApp
                         FormatAmount(balance.ClosingDebit),
                         FormatAmount(balance.ClosingCredit));
                 }
+
+                hasTransactions = transactions.Count > 0;
+                UpdatePdfState();
+            }
+
+            void UpdatePdfState()
+            {
+                pdfButton.Enabled = tabs.SelectedTab == balancesTab ? balanceGrid.Rows.Count > 0 : hasTransactions;
             }
 
             void AddStatementRow(string date, string particulars, decimal debit, decimal credit, bool isSummary)
@@ -286,6 +297,19 @@ namespace RepairAndMaintenanceApp
                 }
             }
 
+            pdfButton.Click += (_, _) =>
+            {
+                var period = monthPicker.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+                if (tabs.SelectedTab == balancesTab)
+                {
+                    GridPdfExporter.Export(this, balanceGrid, $"Particular Balances - {period}");
+                }
+                else
+                {
+                    GridPdfExporter.Export(this, grid, statementTitle.Text);
+                }
+            };
+            tabs.SelectedIndexChanged += (_, _) => UpdatePdfState();
             searchButton.Click += (_, _) => LoadTransactions();
             clearButton.Click += (_, _) =>
             {
@@ -300,6 +324,7 @@ namespace RepairAndMaintenanceApp
             searchPanel.Controls.Add(particularsBox);
             searchPanel.Controls.Add(searchButton);
             searchPanel.Controls.Add(clearButton);
+            searchPanel.Controls.Add(pdfButton);
 
             Controls.Add(title);
             Controls.Add(searchPanel);
