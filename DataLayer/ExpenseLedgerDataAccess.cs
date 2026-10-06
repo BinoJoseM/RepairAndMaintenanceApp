@@ -15,7 +15,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
 
-            var sql = "SELECT e.Id, e.EntryDate, cm.CategoryName, pm.ParticularName, e.Amount, e.SourceFile, e.SourceCell FROM ExpenseLedgerEntries e LEFT JOIN CategoryMaster cm ON cm.Id = e.CategoryId LEFT JOIN ParticularMaster pm ON pm.Id = e.ParticularId WHERE 1 = 1";
+            var sql = "SELECT e.Id, e.JournalId, e.EntryDate, cm.CategoryName, pm.ParticularName, e.Amount, e.SourceFile, e.SourceCell FROM ExpenseLedgerEntries e LEFT JOIN CategoryMaster cm ON cm.Id = e.CategoryId LEFT JOIN ParticularMaster pm ON pm.Id = e.ParticularId WHERE 1 = 1";
             if (!string.IsNullOrWhiteSpace(category) && !string.Equals(category, "All categories", StringComparison.OrdinalIgnoreCase))
             {
                 sql += " AND cm.CategoryName = @categoryName";
@@ -44,12 +44,13 @@ namespace RepairAndMaintenanceApp.DataLayer
                 entries.Add(new ExpenseLedgerEntries
                 {
                     Id = reader.GetInt32(0),
-                    EntryDate = reader.IsDBNull(1) ? null : DateTime.TryParse(reader.GetString(1), out var entryDate) ? entryDate : null,
-                    Category = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                    Particulars = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-                    Amount = reader.IsDBNull(4) ? 0m : Convert.ToDecimal(reader.GetValue(4)),
-                    SourceFile = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
-                    SourceCell = reader.IsDBNull(6) ? string.Empty : reader.GetString(6)
+                    JournalId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    EntryDate = reader.IsDBNull(2) ? null : DateTime.TryParse(reader.GetString(2), out var entryDate) ? entryDate : null,
+                    Category = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                    Particulars = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                    Amount = reader.IsDBNull(5) ? 0m : Convert.ToDecimal(reader.GetValue(5)),
+                    SourceFile = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+                    SourceCell = reader.IsDBNull(7) ? string.Empty : reader.GetString(7)
                 });
             }
 
@@ -70,10 +71,11 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO ExpenseLedgerEntries (EntryDate, CategoryId, ParticularId, Amount, SourceFile, SourceCell)
-                VALUES (@entryDate, @categoryId, @particularId, @amount, @sourceFile, @sourceCell)
+                INSERT INTO ExpenseLedgerEntries (JournalId, EntryDate, CategoryId, ParticularId, Amount, SourceFile, SourceCell)
+                VALUES (@journalId, @entryDate, @categoryId, @particularId, @amount, @sourceFile, @sourceCell)
             ";
 
+            command.Parameters.AddWithValue("@journalId", (object?)entry.JournalId ?? DBNull.Value);
             command.Parameters.AddWithValue("@entryDate", entry.EntryDate.HasValue ? entry.EntryDate.Value.ToString("yyyy-MM-dd") : DBNull.Value);
             command.Parameters.AddWithValue("@categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
@@ -98,7 +100,8 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var command = connection.CreateCommand();
             command.CommandText = @"
                 UPDATE ExpenseLedgerEntries
-                SET EntryDate = @entryDate,
+                SET JournalId = @journalId,
+                    EntryDate = @entryDate,
                     CategoryId = @categoryId,
                     ParticularId = @particularId,
                     Amount = @amount,
@@ -108,6 +111,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             ";
 
             command.Parameters.AddWithValue("@id", entry.Id);
+            command.Parameters.AddWithValue("@journalId", (object?)entry.JournalId ?? DBNull.Value);
             command.Parameters.AddWithValue("@entryDate", entry.EntryDate.HasValue ? entry.EntryDate.Value.ToString("yyyy-MM-dd") : DBNull.Value);
             command.Parameters.AddWithValue("@categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);

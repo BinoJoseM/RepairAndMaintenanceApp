@@ -16,7 +16,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
 
-            var sql = "SELECT Id, StatementTitle, EntryDate, Particulars, Debit, Credit, LineType, SourceFile, SourceRow FROM BalanceSheetItems WHERE 1 = 1";
+            var sql = "SELECT Id, JournalId, StatementTitle, EntryDate, Particulars, Debit, Credit, LineType, SourceFile, SourceRow FROM BalanceSheetItems WHERE 1 = 1";
             if (!string.IsNullOrWhiteSpace(statementTitle) && !string.Equals(statementTitle, "All statements", System.StringComparison.OrdinalIgnoreCase))
             {
                 sql += " AND StatementTitle = @statementTitle";
@@ -34,16 +34,17 @@ namespace RepairAndMaintenanceApp.DataLayer
                 items.Add(new BalanceSheetItems
                 {
                     Id = reader.GetInt32(0),
-                    StatementTitle = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                    EntryDate = reader.IsDBNull(2) || !DateTime.TryParse(reader.GetString(2), CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate)
+                    JournalId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    StatementTitle = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                    EntryDate = reader.IsDBNull(3) || !DateTime.TryParse(reader.GetString(3), CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate)
                         ? null
                         : entryDate,
-                    Particulars = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-                    Debit = reader.IsDBNull(4) ? 0m : System.Convert.ToDecimal(reader.GetValue(4)),
-                    Credit = reader.IsDBNull(5) ? 0m : System.Convert.ToDecimal(reader.GetValue(5)),
-                    LineType = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
-                    SourceFile = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
-                    SourceRow = reader.IsDBNull(8) ? 0 : reader.GetInt32(8)
+                    Particulars = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                    Debit = reader.IsDBNull(5) ? 0m : System.Convert.ToDecimal(reader.GetValue(5)),
+                    Credit = reader.IsDBNull(6) ? 0m : System.Convert.ToDecimal(reader.GetValue(6)),
+                    LineType = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
+                    SourceFile = reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
+                    SourceRow = reader.IsDBNull(9) ? 0 : reader.GetInt32(9)
                 });
             }
 

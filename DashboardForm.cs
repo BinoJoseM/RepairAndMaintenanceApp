@@ -164,8 +164,8 @@ namespace RepairAndMaintenanceApp
             {
                 new { Text = "Home", FormType = typeof(DashboardForm) },
                 new { Text = "Journal", FormType = typeof(JournalForm) },
-                new { Text = "Expenses", FormType = typeof(LedgerExpensesForm) },
-                new { Text = "Income", FormType = typeof(LedgerIncomeForm) },
+                new { Text = "Expenses", FormType = typeof(RecordExpenseForm) },
+                new { Text = "Income", FormType = typeof(RecordIncomeForm) },
                 new { Text = "Categories", FormType = typeof(CategoryMasterForm) },
                 new { Text = "Particulars", FormType = typeof(ParticularMasterForm) },
                 new {Text = "Balance Sheet", FormType = typeof(BalanceSheetForm) },

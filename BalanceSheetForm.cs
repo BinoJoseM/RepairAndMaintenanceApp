@@ -150,13 +150,15 @@ namespace RepairAndMaintenanceApp
             };
 
             grid.Columns.Add("EntryDate", "Entry Date");
+            grid.Columns.Add("JournalId", "Journal ID");
             grid.Columns.Add("Particulars", "Particulars");
             grid.Columns.Add("Dr(rs)", "Dr(rs)");
             grid.Columns.Add("Cr(rs)", "Cr(rs)");
             grid.Columns[0].FillWeight = 18;
-            grid.Columns[1].FillWeight = 42;
-            grid.Columns[2].FillWeight = 20;
-            grid.Columns[3].FillWeight = 20;
+            grid.Columns[1].FillWeight = 14;
+            grid.Columns[2].FillWeight = 34;
+            grid.Columns[3].FillWeight = 17;
+            grid.Columns[4].FillWeight = 17;
             grid.Columns[0].Visible = false;
             grid.Columns[0].DefaultCellStyle.Format = "dd-MMM-yyyy";
             grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -298,7 +300,7 @@ namespace RepairAndMaintenanceApp
 
                 foreach (var row in rows)
                 {
-                    var rowIndex = grid.Rows.Add(row.EntryDate, row.Particulars, FormatAmount(row.Debit), FormatAmount(row.Credit));
+                    var rowIndex = grid.Rows.Add(row.EntryDate, row.JournalId?.ToString() ?? string.Empty, row.Particulars, FormatAmount(row.Debit), FormatAmount(row.Credit));
 
                     var isSummary = row.LineType.Equals("Total", StringComparison.OrdinalIgnoreCase)
                         || row.LineType.Equals("Grand Total", StringComparison.OrdinalIgnoreCase)
@@ -311,10 +313,10 @@ namespace RepairAndMaintenanceApp
                         grid.Rows[rowIndex].DefaultCellStyle.ForeColor = Color.FromArgb(20, 29, 38);
                     }
 
-                    grid.Rows[rowIndex].Cells[2].Style.Alignment = DataGridViewContentAlignment.MiddleRight;
                     grid.Rows[rowIndex].Cells[3].Style.Alignment = DataGridViewContentAlignment.MiddleRight;
-                    grid.Rows[rowIndex].Cells[2].Style.ForeColor = Color.FromArgb(18, 60, 98);
+                    grid.Rows[rowIndex].Cells[4].Style.Alignment = DataGridViewContentAlignment.MiddleRight;
                     grid.Rows[rowIndex].Cells[3].Style.ForeColor = Color.FromArgb(18, 60, 98);
+                    grid.Rows[rowIndex].Cells[4].Style.ForeColor = Color.FromArgb(18, 60, 98);
                 }
             }
 

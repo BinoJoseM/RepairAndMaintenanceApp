@@ -10,11 +10,11 @@ using RepairAndMaintenanceApp.ServiceLayer;
 
 namespace RepairAndMaintenanceApp
 {
-    public class LedgerIncomeForm : Form
+    public class RecordExpenseForm : Form
     {
-        public LedgerIncomeForm()
+        public RecordExpenseForm()
         {
-            Text = "Ledger (Income)";
+            Text = "Expense Ledger";
             Width = 980;
             Height = 820;
             StartPosition = FormStartPosition.CenterScreen;
@@ -26,11 +26,20 @@ namespace RepairAndMaintenanceApp
 
             var title = new Label
             {
-                Text = "Ledger (Income)",
+                Text = "Expense Ledger",
                 Font = new Font("Segoe UI", 22F, FontStyle.Bold),
                 AutoSize = true,
                 Location = new Point(24, 20),
                 ForeColor = Color.FromArgb(40, 46, 58)
+            };
+
+            var subtitle = new Label
+            {
+                Text = "Operations overview",
+                AutoSize = true,
+                Location = new Point(220, 30),
+                ForeColor = Color.FromArgb(109, 120, 134),
+                Font = new Font("Segoe UI", 11F)
             };
 
             var searchPanel = new Panel
@@ -45,7 +54,7 @@ namespace RepairAndMaintenanceApp
 
             var monthAndDateLabel = new Label
             {
-                Text = "Month",
+                Text = "Month / Date",
                 AutoSize = true,
                 Location = new Point(8, 19),
                 ForeColor = Color.FromArgb(60, 72, 84),
@@ -57,7 +66,7 @@ namespace RepairAndMaintenanceApp
                 Width = 150,
                 Location = new Point(108, 15),
                 Format = DateTimePickerFormat.Custom,
-                CustomFormat = "MMMM yyyy",
+                CustomFormat = "yyyy-MM-dd",
                 ShowCheckBox = true,
                 Checked = false,
                 BackColor = Color.White,
@@ -84,7 +93,7 @@ namespace RepairAndMaintenanceApp
             };
 
             var categoryItems = new List<string> { "All categories" };
-            categoryItems.AddRange(SqliteDataAccess.GetCategoryNames("Income"));
+            categoryItems.AddRange(SqliteDataAccess.GetCategoryNames("Expense"));
             categoriesBox.Items.AddRange(categoryItems.Distinct().ToArray());
             categoriesBox.SelectedIndex = 0;
 
@@ -143,26 +152,28 @@ namespace RepairAndMaintenanceApp
             };
 
             grid.Columns.Add("Date", "Date");
+            grid.Columns.Add("JournalId", "Journal ID");
             grid.Columns.Add("Category", "Category");
             grid.Columns.Add("Particulars", "Particulars");
             grid.Columns.Add("Amount", "Amount");
-            // grid.Columns.Add("SourceFile", "Source File");
-            // grid.Columns.Add("SourceCell", "Source Cell");
+            grid.Columns.Add("SourceFile", "Source File");
+            grid.Columns.Add("SourceCell", "Source Cell");
 
             void LoadGridData()
             {
                 grid.Rows.Clear();
 
-                var entries = IncomeLedgerService.GetAll();
+                var entries = ExpenseService.GetAll();
                 foreach (var item in entries)
                 {
                     var rowIndex = grid.Rows.Add(
                         item.EntryDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+                        item.JournalId?.ToString() ?? string.Empty,
                         item.Category,
                         item.Particulars,
-                        item.Amount.ToString("C2", CultureInfo.GetCultureInfo("en-US")));
-                        // item.SourceFile,
-                        // item.SourceCell
+                        item.Amount.ToString("C2", CultureInfo.GetCultureInfo("en-US")),
+                        item.SourceFile,
+                        item.SourceCell);
 
                     grid.Rows[rowIndex].Tag = item.Id;
                 }
@@ -185,7 +196,7 @@ namespace RepairAndMaintenanceApp
 
             var editorTitle = new Label
             {
-                Text = "Save / Update Income Data",
+                Text = "Save / Update Expense Data",
                 AutoSize = false,
                 Size = new Size(856, 24),
                 Location = new Point(14, 10),
@@ -204,7 +215,7 @@ namespace RepairAndMaintenanceApp
                 BackColor = Color.White,
                 Font = new Font("Segoe UI", 10F)
             };
-            var categoryBox = CreateDropDown(205, 56, 210, SqliteDataAccess.GetCategoryNames("Income").ToArray());
+            var categoryBox = CreateDropDown(205, 56, 210, SqliteDataAccess.GetCategoryNames("Expense").ToArray());
             var particularsBox = CreateEditorDropDown(435, 56, 280);
             var amountBox = CreateEditorTextBox(745, 56, 120);
 
@@ -237,12 +248,12 @@ namespace RepairAndMaintenanceApp
                 var category = CategoryMasterService.GetAll()
                     .FirstOrDefault(item =>
                         string.Equals(item.CategoryName, categoryName, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(item.CategoryType, "Income", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(item.CategoryType, "Expense", StringComparison.OrdinalIgnoreCase) &&
                         item.IsActive);
 
                 if (category == null)
                 {
-                    MessageBox.Show("Select a valid income category before adding a particular.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Select a valid expense category before adding a particular.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
@@ -294,7 +305,7 @@ namespace RepairAndMaintenanceApp
                     return;
                 }
 
-                var selectedEntry = IncomeLedgerService.GetAll().FirstOrDefault(x => x.Id == selectedRowId.Value);
+                var selectedEntry = ExpenseService.GetAll().FirstOrDefault(x => x.Id == selectedRowId.Value);
                 if (selectedEntry == null)
                 {
                     return;
@@ -314,13 +325,13 @@ namespace RepairAndMaintenanceApp
             {
                 if (categoryBox.SelectedIndex < 0 || string.IsNullOrWhiteSpace(particularsBox.Text) || string.IsNullOrWhiteSpace(amountBox.Text))
                 {
-                    MessageBox.Show("Select a category and particular, then enter the amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Select a category and particular, then enter the amount.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
                 if (!decimal.TryParse(amountBox.Text.Replace("$", string.Empty).Replace(",", string.Empty), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
                 {
-                    MessageBox.Show("Enter a valid amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Enter a valid amount.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
@@ -346,7 +357,7 @@ namespace RepairAndMaintenanceApp
                 }
 
                 var amount = decimal.Parse(amountBox.Text.Replace("$", string.Empty).Replace(",", string.Empty), NumberStyles.Number, CultureInfo.InvariantCulture);
-                var entry = new IncomeLedgerEntries
+                var entry = new ExpenseLedgerEntries
                 {
                     EntryDate = dateBox.Value,
                     Category = categoryBox.Text,
@@ -356,9 +367,9 @@ namespace RepairAndMaintenanceApp
                     SourceCell = "Manual"
                 };
 
-                IncomeLedgerService.Add(entry);
+                ExpenseService.Add(entry);
                 LoadGridData();
-                MessageBox.Show("Income record saved.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Expense record saved.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
             updateButton.Click += (_, _) =>
@@ -375,15 +386,16 @@ namespace RepairAndMaintenanceApp
                 }
 
                 var amount = decimal.Parse(amountBox.Text.Replace("$", string.Empty).Replace(",", string.Empty), NumberStyles.Number, CultureInfo.InvariantCulture);
-                var selectedEntry = IncomeLedgerService.GetAll().FirstOrDefault(x => x.Id == selectedRowId.Value);
+                var selectedEntry = ExpenseService.GetAll().FirstOrDefault(x => x.Id == selectedRowId.Value);
                 if (selectedEntry == null)
                 {
                     return;
                 }
 
-                var updatedEntry = new IncomeLedgerEntries
+                var updatedEntry = new ExpenseLedgerEntries
                 {
                     Id = selectedEntry.Id,
+                    JournalId = selectedEntry.JournalId,
                     EntryDate = dateBox.Value,
                     Category = categoryBox.Text,
                     Particulars = particularsBox.SelectedItem?.ToString() ?? string.Empty,
@@ -392,9 +404,9 @@ namespace RepairAndMaintenanceApp
                     SourceCell = selectedEntry.SourceCell
                 };
 
-                IncomeLedgerService.Update(updatedEntry);
+                ExpenseService.Update(updatedEntry);
                 LoadGridData();
-                MessageBox.Show("Income record updated.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Expense record updated.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
             deleteButton.Click += (_, _) =>
@@ -410,26 +422,28 @@ namespace RepairAndMaintenanceApp
                     return;
                 }
 
-                var confirmation = MessageBox.Show("Delete the selected income record?", "Delete Income Record", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                var confirmation = MessageBox.Show("Delete the selected expense record?", "Delete Expense Record", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (confirmation == DialogResult.Yes)
                 {
-                    IncomeLedgerService.Delete(selectedRowId.Value);
+                    ExpenseService.Delete(selectedRowId.Value);
                     LoadGridData();
-                    MessageBox.Show("Income record deleted.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("Expense record deleted.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
 
             void ApplySearch()
             {
+                var selectedDate = monthAndDateBox.Value.ToString("yyyy-MM-dd");
                 var selectedCategory = categoriesBox.SelectedItem?.ToString() ?? "All categories";
 
-                var entries = IncomeLedgerService.GetAll(selectedCategory, monthAndDateBox.Checked ? monthAndDateBox.Value : null);
+                var entries = ExpenseService.GetAll(selectedCategory, monthAndDateBox.Checked ? monthAndDateBox.Value : null);
                 grid.Rows.Clear();
 
                 foreach (var item in entries)
                 {
                     var rowIndex = grid.Rows.Add(
                         item.EntryDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+                        item.JournalId?.ToString() ?? string.Empty,
                         item.Category,
                         item.Particulars,
                         item.Amount.ToString("C2", CultureInfo.GetCultureInfo("en-US")),

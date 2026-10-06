@@ -93,13 +93,13 @@ namespace RepairAndMaintenanceApp.DataAccess
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
-                CREATE TABLE IF NOT EXISTS JournalEntries (
+                CREATE TABLE IF NOT EXISTS JournalHeader (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     EntryDate TEXT NOT NULL,
+                    Reference TEXT NULL,
                     Description TEXT NOT NULL,
-                    Account TEXT NOT NULL,
-                    Debit REAL NOT NULL DEFAULT 0,
-                    Credit REAL NOT NULL DEFAULT 0,
+                    Status TEXT NOT NULL DEFAULT 'Draft' CHECK (Status IN ('Draft', 'Posted', 'Void')),
+                    SourceDocumentReference TEXT NULL,
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
@@ -191,6 +191,7 @@ namespace RepairAndMaintenanceApp.DataAccess
 
                 CREATE TABLE IF NOT EXISTS ExpenseLedgerEntries (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
                     EntryDate TEXT NULL,
                     CategoryId INTEGER NULL REFERENCES CategoryMaster(Id),
                     ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
@@ -202,6 +203,7 @@ namespace RepairAndMaintenanceApp.DataAccess
 
                 CREATE TABLE IF NOT EXISTS IncomeLedgerEntries (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
                     EntryDate TEXT NULL,
                     CategoryId INTEGER NULL REFERENCES CategoryMaster(Id),
                     ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
@@ -213,6 +215,7 @@ namespace RepairAndMaintenanceApp.DataAccess
 
                 CREATE TABLE IF NOT EXISTS BalanceSheetItems (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
                     StatementTitle TEXT NOT NULL,
                     EntryDate TEXT NULL,
                     Particulars TEXT NOT NULL,
@@ -247,6 +250,7 @@ namespace RepairAndMaintenanceApp.DataAccess
             ";
             cmd.ExecuteNonQuery();
 
+            MigrateJournalHeader(connection);
             MigrateCategorySchema(connection);
 
             SeedDefaultUserIfNeeded();
@@ -263,6 +267,36 @@ namespace RepairAndMaintenanceApp.DataAccess
             }
 
             SyncCategoriesFromLedgerEntries();
+        }
+
+        private static void MigrateJournalHeader(SqliteConnection connection)
+        {
+            using var transaction = connection.BeginTransaction();
+
+            if (TableExists(connection, transaction, "JournalEntries"))
+            {
+                if (!TableExists(connection, transaction, "JournalEntries_Legacy"))
+                {
+                    using var copyLegacyRows = connection.CreateCommand();
+                    copyLegacyRows.Transaction = transaction;
+                    copyLegacyRows.CommandText = @"
+                        INSERT OR IGNORE INTO JournalHeader
+                            (Id, EntryDate, Reference, Description, Status, SourceDocumentReference, CreatedAt)
+                        SELECT Id, EntryDate, NULL, Description, 'Draft', NULL, CreatedAt
+                        FROM JournalEntries;
+
+                        ALTER TABLE JournalEntries RENAME TO JournalEntries_Legacy;
+                    ";
+                    copyLegacyRows.ExecuteNonQuery();
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "Both JournalEntries and JournalEntries_Legacy exist. Resolve the legacy journal tables before continuing.");
+                }
+            }
+
+            transaction.Commit();
         }
 
         public static void SyncCategoriesFromLedgerEntries()
@@ -319,7 +353,9 @@ namespace RepairAndMaintenanceApp.DataAccess
             EnsureLegacyLedgerParticulars(connection, transaction, "IncomeLedgerEntries");
             MigrateLedgerParticularColumn(connection, transaction, "ExpenseLedgerEntries");
             MigrateLedgerParticularColumn(connection, transaction, "IncomeLedgerEntries");
+            EnsureLedgerJournalIdColumns(connection, transaction);
             EnsureBalanceSheetEntryDateColumn(connection, transaction);
+            EnsureBalanceSheetJournalIdColumn(connection, transaction);
 
             if (TableExists(connection, transaction, "Categories"))
             {
@@ -330,6 +366,23 @@ namespace RepairAndMaintenanceApp.DataAccess
             }
 
             transaction.Commit();
+        }
+
+        private static void EnsureLedgerJournalIdColumns(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            foreach (var tableName in new[] { "ExpenseLedgerEntries", "IncomeLedgerEntries" })
+            {
+                if (!TableExists(connection, transaction, tableName)
+                    || HasColumn(connection, transaction, tableName, "JournalId"))
+                {
+                    continue;
+                }
+
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = $"ALTER TABLE {tableName} ADD COLUMN JournalId INTEGER NULL REFERENCES JournalTransactions(Id)";
+                command.ExecuteNonQuery();
+            }
         }
 
         private static void EnsureBalanceSheetEntryDateColumn(SqliteConnection connection, SqliteTransaction transaction)
@@ -374,6 +427,20 @@ namespace RepairAndMaintenanceApp.DataAccess
                 update.Parameters.AddWithValue("@id", row.Id);
                 update.ExecuteNonQuery();
             }
+        }
+
+        private static void EnsureBalanceSheetJournalIdColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "BalanceSheetItems")
+                || HasColumn(connection, transaction, "BalanceSheetItems", "JournalId"))
+            {
+                return;
+            }
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "ALTER TABLE BalanceSheetItems ADD COLUMN JournalId INTEGER NULL REFERENCES JournalTransactions(Id)";
+            command.ExecuteNonQuery();
         }
 
         private static DateTime? ParseStatementDate(string statementTitle)

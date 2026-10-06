@@ -5,6 +5,7 @@ namespace RepairAndMaintenanceApp.Entities
     public class ExpenseLedgerEntries
     {
         public int Id { get; set; }
+        public int? JournalId { get; set; }
         public DateTime? EntryDate { get; set; }
         public string Category { get; set; } = string.Empty;
         public string Particulars { get; set; } = string.Empty;

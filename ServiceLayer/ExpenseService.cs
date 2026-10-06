@@ -5,7 +5,7 @@ using RepairAndMaintenanceApp.Entities;
 
 namespace RepairAndMaintenanceApp.ServiceLayer
 {
-    public class ExpenseLedgerService
+    public class ExpenseService
     {
         public static List<ExpenseLedgerEntries> GetAll(string? category = null, DateTime? selectedDate = null)
         {
