@@ -358,7 +358,7 @@ namespace RepairAndMaintenanceApp
                     SourceCell = "Manual"
                 };
 
-                IncomeService.Add(entry);
+                IncomeService.SaveManualEntry(entry);
                 LoadGridData();
                 MessageBox.Show("Income record saved.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
@@ -395,7 +395,7 @@ namespace RepairAndMaintenanceApp
                     SourceCell = selectedEntry.SourceCell
                 };
 
-                IncomeService.Update(updatedEntry);
+                IncomeService.UpdateManualEntry(updatedEntry);
                 LoadGridData();
                 MessageBox.Show("Income record updated.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };

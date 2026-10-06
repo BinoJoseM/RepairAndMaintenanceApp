@@ -14,12 +14,22 @@ namespace RepairAndMaintenanceApp.ServiceLayer
 
         public static void Add(ExpenseLedgerEntries entry)
         {
-            ExpenseLedgerDataAccess.Add(entry);
+            SaveManualEntry(entry);
+        }
+
+        public static void SaveManualEntry(ExpenseLedgerEntries entry)
+        {
+            ExpenseLedgerDataAccess.SaveManualEntry(entry);
         }
 
         public static void Update(ExpenseLedgerEntries entry)
         {
-            ExpenseLedgerDataAccess.Update(entry);
+            UpdateManualEntry(entry);
+        }
+
+        public static void UpdateManualEntry(ExpenseLedgerEntries entry)
+        {
+            ExpenseLedgerDataAccess.UpdateManualEntry(entry);
         }
 
         public static void Delete(int id)

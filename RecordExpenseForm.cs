@@ -367,7 +367,7 @@ namespace RepairAndMaintenanceApp
                     SourceCell = "Manual"
                 };
 
-                ExpenseService.Add(entry);
+                ExpenseService.SaveManualEntry(entry);
                 LoadGridData();
                 MessageBox.Show("Expense record saved.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
@@ -404,7 +404,7 @@ namespace RepairAndMaintenanceApp
                     SourceCell = selectedEntry.SourceCell
                 };
 
-                ExpenseService.Update(updatedEntry);
+                ExpenseService.UpdateManualEntry(updatedEntry);
                 LoadGridData();
                 MessageBox.Show("Expense record updated.", "Expense Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
