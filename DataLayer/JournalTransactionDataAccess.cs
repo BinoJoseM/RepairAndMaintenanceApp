@@ -13,7 +13,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             SqliteConnection connection,
             SqliteTransaction transaction,
             DateTime? entryDate,
-            string particulars,
+            long? particularId,
             decimal debit,
             decimal credit,
             string sourceFile)
@@ -27,11 +27,11 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = @"
-                INSERT INTO JournalTransactions (EntryDate, Particulars, Debit, Credit, SourceFile, SourceRow)
-                VALUES (@entryDate, @particulars, @debit, @credit, @sourceFile, @sourceRow)
+                INSERT INTO JournalTransactions (EntryDate, ParticularId, Debit, Credit, SourceFile, SourceRow)
+                VALUES (@entryDate, @particularId, @debit, @credit, @sourceFile, @sourceRow)
             ";
             command.Parameters.AddWithValue("@entryDate", entryDate.HasValue ? entryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DBNull.Value);
-            command.Parameters.AddWithValue("@particulars", particulars);
+            command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
             command.Parameters.AddWithValue("@debit", debit);
             command.Parameters.AddWithValue("@credit", credit);
             command.Parameters.AddWithValue("@sourceFile", sourceFile);
@@ -49,7 +49,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             SqliteTransaction transaction,
             int journalId,
             DateTime? entryDate,
-            string particulars,
+            long? particularId,
             decimal debit,
             decimal credit)
         {
@@ -75,14 +75,14 @@ namespace RepairAndMaintenanceApp.DataLayer
             command.CommandText = @"
                 UPDATE JournalTransactions
                 SET EntryDate = @entryDate,
-                    Particulars = @particulars,
+                    ParticularId = @particularId,
                     Debit = @debit,
                     Credit = @credit
                 WHERE Id = @id
             ";
             command.Parameters.AddWithValue("@id", journalId);
             command.Parameters.AddWithValue("@entryDate", entryDate.HasValue ? entryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DBNull.Value);
-            command.Parameters.AddWithValue("@particulars", particulars);
+            command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
             command.Parameters.AddWithValue("@debit", debit);
             command.Parameters.AddWithValue("@credit", credit);
             command.ExecuteNonQuery();
@@ -98,9 +98,11 @@ namespace RepairAndMaintenanceApp.DataLayer
             connection.Open();
 
             var sql = @"
-                SELECT Id, EntryDate, Particulars, Debit, Credit, SourceFile, SourceRow
-                FROM JournalTransactions
-                WHERE lower(Particulars) NOT LIKE '%open balance%'";
+                SELECT jt.Id, jt.ParticularId, jt.EntryDate, COALESCE(pm.ParticularName, ''),
+                    jt.Debit, jt.Credit, jt.SourceFile, jt.SourceRow
+                FROM JournalTransactions jt
+                LEFT JOIN ParticularMaster pm ON pm.Id = jt.ParticularId
+                WHERE lower(COALESCE(pm.ParticularName, '')) NOT LIKE '%open balance%'";
             if (selectedMonth.HasValue)
             {
                 sql += @" AND (
@@ -111,10 +113,10 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             if (!string.IsNullOrWhiteSpace(particulars))
             {
-                sql += " AND Particulars = @particulars";
+                sql += " AND pm.ParticularName = @particulars";
             }
 
-            sql += " ORDER BY date(EntryDate), Id";
+            sql += " ORDER BY date(jt.EntryDate), jt.Id";
 
             using var command = new SqliteCommand(sql, connection);
             if (selectedMonth.HasValue)
@@ -136,16 +138,17 @@ namespace RepairAndMaintenanceApp.DataLayer
                 transactions.Add(new JournalTransaction
                 {
                     Id = reader.GetInt32(0),
-                    EntryDate = reader.IsDBNull(1)
+                    ParticularId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    EntryDate = reader.IsDBNull(2)
                         ? null
-                        : DateTime.TryParse(reader.GetString(1), CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate)
+                        : DateTime.TryParse(reader.GetString(2), CultureInfo.InvariantCulture, DateTimeStyles.None, out var entryDate)
                             ? entryDate
                             : null,
-                    Particulars = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                    Debit = reader.IsDBNull(3) ? 0m : Convert.ToDecimal(reader.GetValue(3)),
-                    Credit = reader.IsDBNull(4) ? 0m : Convert.ToDecimal(reader.GetValue(4)),
-                    SourceFile = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
-                    SourceRow = reader.IsDBNull(6) ? 0 : reader.GetInt32(6)
+                    Particulars = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                    Debit = reader.IsDBNull(4) ? 0m : Convert.ToDecimal(reader.GetValue(4)),
+                    Credit = reader.IsDBNull(5) ? 0m : Convert.ToDecimal(reader.GetValue(5)),
+                    SourceFile = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+                    SourceRow = reader.IsDBNull(7) ? 0 : reader.GetInt32(7)
                 });
             }
 
@@ -165,29 +168,30 @@ namespace RepairAndMaintenanceApp.DataLayer
             command.CommandText = @"
                 WITH ParticularTotals AS (
                     SELECT
-                        trim(Particulars) AS Particulars,
+                        trim(COALESCE(pm.ParticularName, '')) AS Particulars,
                         SUM(CASE
-                            WHEN EntryDate IS NOT NULL AND date(EntryDate) < date(@monthStart)
-                            THEN Debit - Credit
+                            WHEN jt.EntryDate IS NOT NULL AND date(jt.EntryDate) < date(@monthStart)
+                            THEN jt.Debit - jt.Credit
                             ELSE 0
                         END) AS OpeningBalance,
                         SUM(CASE
-                            WHEN (date(EntryDate) >= date(@monthStart) AND date(EntryDate) < date(@nextMonthStart))
-                                OR (EntryDate IS NULL AND SourceFile LIKE @sourceFilePattern)
-                            THEN Debit
+                            WHEN (date(jt.EntryDate) >= date(@monthStart) AND date(jt.EntryDate) < date(@nextMonthStart))
+                                OR (jt.EntryDate IS NULL AND jt.SourceFile LIKE @sourceFilePattern)
+                            THEN jt.Debit
                             ELSE 0
                         END) AS MonthlyDebit,
                         SUM(CASE
-                            WHEN (date(EntryDate) >= date(@monthStart) AND date(EntryDate) < date(@nextMonthStart))
-                                OR (EntryDate IS NULL AND SourceFile LIKE @sourceFilePattern)
-                            THEN Credit
+                            WHEN (date(jt.EntryDate) >= date(@monthStart) AND date(jt.EntryDate) < date(@nextMonthStart))
+                                OR (jt.EntryDate IS NULL AND jt.SourceFile LIKE @sourceFilePattern)
+                            THEN jt.Credit
                             ELSE 0
                         END) AS MonthlyCredit
-                    FROM JournalTransactions
-                    WHERE trim(Particulars) <> ''
-                        AND lower(Particulars) NOT LIKE '%open balance%'
-                        AND (@particulars IS NULL OR trim(Particulars) = @particulars)
-                    GROUP BY trim(Particulars)
+                    FROM JournalTransactions jt
+                    LEFT JOIN ParticularMaster pm ON pm.Id = jt.ParticularId
+                    WHERE trim(COALESCE(pm.ParticularName, '')) <> ''
+                        AND lower(pm.ParticularName) NOT LIKE '%open balance%'
+                        AND (@particulars IS NULL OR trim(pm.ParticularName) = @particulars)
+                    GROUP BY jt.ParticularId, trim(pm.ParticularName)
                 )
                 SELECT Particulars, OpeningBalance, MonthlyDebit, MonthlyCredit
                 FROM ParticularTotals
@@ -230,7 +234,12 @@ namespace RepairAndMaintenanceApp.DataLayer
             connection.Open();
 
             using var command = new SqliteCommand(
-                "SELECT DISTINCT trim(Particulars) FROM JournalTransactions WHERE trim(Particulars) <> '' AND lower(Particulars) NOT LIKE '%open balance%' ORDER BY trim(Particulars)",
+                @"SELECT DISTINCT trim(pm.ParticularName)
+                  FROM JournalTransactions jt
+                  JOIN ParticularMaster pm ON pm.Id = jt.ParticularId
+                  WHERE trim(pm.ParticularName) <> ''
+                    AND lower(pm.ParticularName) NOT LIKE '%open balance%'
+                  ORDER BY trim(pm.ParticularName)",
                 connection);
             using var reader = command.ExecuteReader();
             while (reader.Read())

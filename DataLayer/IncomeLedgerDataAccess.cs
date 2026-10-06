@@ -78,12 +78,14 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
             using var transaction = connection.BeginTransaction();
+            var categoryId = GetOrCreateCategoryId(connection, entry.Category, transaction);
+            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
 
             var journalEntry = JournalTransactionDataAccess.AddFromLedger(
                 connection,
                 transaction,
                 entry.EntryDate,
-                entry.Particulars,
+                particularId,
                 0m,
                 entry.Amount,
                 string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
@@ -117,14 +119,16 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
             using var transaction = connection.BeginTransaction();
+            var categoryId = GetOrCreateCategoryId(connection, entry.Category, transaction);
+            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
 
             var journalEntry = entry.JournalId.HasValue
-                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, entry.Particulars, 0m, entry.Amount)
+                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, particularId, 0m, entry.Amount)
                 : JournalTransactionDataAccess.AddFromLedger(
                     connection,
                     transaction,
                     entry.EntryDate,
-                    entry.Particulars,
+                    particularId,
                     0m,
                     entry.Amount,
                     string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
