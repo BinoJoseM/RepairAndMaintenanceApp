@@ -140,75 +140,14 @@ namespace RepairAndMaintenanceApp
             };
             var statementPanel = new Panel
             {
-                Dock = DockStyle.Fill,
+                Location = new Point(24, 134),
+                Size = new Size(900, 600),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.White,
                 Padding = new Padding(10)
             };
             statementPanel.Controls.Add(grid);
             statementPanel.Controls.Add(statementTitle);
-
-            var balanceGrid = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                RowHeadersVisible = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle,
-                GridColor = Color.FromArgb(223, 230, 239),
-                EnableHeadersVisualStyles = false,
-                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
-                ColumnHeadersHeight = 36,
-                RowTemplate = { Height = 32 }
-            };
-            balanceGrid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
-            {
-                BackColor = Color.FromArgb(79, 100, 135),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                Padding = new Padding(2, 0, 2, 0)
-            };
-            balanceGrid.DefaultCellStyle = new DataGridViewCellStyle
-            {
-                BackColor = Color.White,
-                ForeColor = Color.FromArgb(42, 50, 59),
-                SelectionBackColor = Color.FromArgb(140, 156, 189),
-                SelectionForeColor = Color.White,
-                Padding = new Padding(2, 3, 2, 3),
-                Font = new Font("Segoe UI", 9F)
-            };
-            balanceGrid.Columns.Add("Particulars", "Particulars");
-            balanceGrid.Columns.Add("OpeningDebit", "Opening Dr (₹)");
-            balanceGrid.Columns.Add("OpeningCredit", "Opening Cr (₹)");
-            balanceGrid.Columns.Add("MonthlyDebit", "Month Dr (₹)");
-            balanceGrid.Columns.Add("MonthlyCredit", "Month Cr (₹)");
-            balanceGrid.Columns.Add("ClosingDebit", "Closing Dr (₹)");
-            balanceGrid.Columns.Add("ClosingCredit", "Closing Cr (₹)");
-            balanceGrid.Columns["Particulars"]!.FillWeight = 30;
-            foreach (var columnName in new[] { "OpeningDebit", "OpeningCredit", "MonthlyDebit", "MonthlyCredit", "ClosingDebit", "ClosingCredit" })
-            {
-                balanceGrid.Columns[columnName]!.FillWeight = 14;
-                balanceGrid.Columns[columnName]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-            }
-
-            var tabs = new TabControl
-            {
-                Location = new Point(24, 134),
-                Size = new Size(900, 600),
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
-            };
-            var transactionsTab = new TabPage("Journal Entries");
-            var balancesTab = new TabPage("Opening / Closing Balances");
-            transactionsTab.Controls.Add(statementPanel);
-            balancesTab.Controls.Add(balanceGrid);
-            tabs.TabPages.Add(transactionsTab);
-            tabs.TabPages.Add(balancesTab);
-
-            var hasTransactions = false;
 
             void LoadTransactions()
             {
@@ -266,26 +205,7 @@ namespace RepairAndMaintenanceApp
                     totalCredit + closingCredit,
                     true);
 
-                balanceGrid.Rows.Clear();
-                foreach (var balance in particularBalances)
-                {
-                    balanceGrid.Rows.Add(
-                        balance.Particulars,
-                        FormatAmount(balance.OpeningDebit),
-                        FormatAmount(balance.OpeningCredit),
-                        FormatAmount(balance.MonthlyDebit),
-                        FormatAmount(balance.MonthlyCredit),
-                        FormatAmount(balance.ClosingDebit),
-                        FormatAmount(balance.ClosingCredit));
-                }
-
-                hasTransactions = transactions.Count > 0;
-                UpdatePdfState();
-            }
-
-            void UpdatePdfState()
-            {
-                pdfButton.Enabled = tabs.SelectedTab == balancesTab ? balanceGrid.Rows.Count > 0 : hasTransactions;
+                pdfButton.Enabled = transactions.Count > 0;
             }
 
             void AddStatementRow(string date, string particulars, decimal debit, decimal credit, bool isSummary)
@@ -297,19 +217,7 @@ namespace RepairAndMaintenanceApp
                 }
             }
 
-            pdfButton.Click += (_, _) =>
-            {
-                var period = monthPicker.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-                if (tabs.SelectedTab == balancesTab)
-                {
-                    GridPdfExporter.Export(this, balanceGrid, $"Particular Balances - {period}");
-                }
-                else
-                {
-                    GridPdfExporter.Export(this, grid, statementTitle.Text);
-                }
-            };
-            tabs.SelectedIndexChanged += (_, _) => UpdatePdfState();
+            pdfButton.Click += (_, _) => GridPdfExporter.Export(this, grid, statementTitle.Text);
             searchButton.Click += (_, _) => LoadTransactions();
             clearButton.Click += (_, _) =>
             {
@@ -328,13 +236,13 @@ namespace RepairAndMaintenanceApp
 
             Controls.Add(title);
             Controls.Add(searchPanel);
-            Controls.Add(tabs);
+            Controls.Add(statementPanel);
 
             Resize += (_, _) =>
             {
                 searchPanel.Width = Math.Max(0, ClientSize.Width - 48);
-                tabs.Width = Math.Max(0, ClientSize.Width - 48);
-                tabs.Height = Math.Max(120, ClientSize.Height - 158);
+                statementPanel.Width = Math.Max(0, ClientSize.Width - 48);
+                statementPanel.Height = Math.Max(120, ClientSize.Height - 158);
             };
 
             LoadTransactions();
@@ -343,13 +251,6 @@ namespace RepairAndMaintenanceApp
         private static string FormatDate(DateTime? date)
         {
             return date?.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
-        }
-
-        private static string FormatAmount(decimal amount)
-        {
-            return amount == 0m
-                ? string.Empty
-                : $"₹{amount.ToString("#,##0.00", CultureInfo.GetCultureInfo("en-IN"))}";
         }
 
         private static string FormatStatementAmount(decimal amount)

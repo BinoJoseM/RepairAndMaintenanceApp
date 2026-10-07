@@ -170,7 +170,8 @@ namespace RepairAndMaintenanceApp
                 new { Text = "Particulars", FormType = typeof(ParticularMasterForm) },
                 new {Text = "Balance Sheet", FormType = typeof(BalanceSheetForm) },
                 new { Text = "Monthly Summary", FormType = typeof(MonthlyIncomeExpenseSummaryForm) },
-                new { Text = "Reports", FormType = typeof(ReportForm) }               
+                new { Text = "Reports", FormType = typeof(ReportForm) },
+                new { Text = "Settings", FormType = typeof(SettingsForm) }
             };
 
             foreach (var item in navItems)
@@ -331,12 +332,14 @@ namespace RepairAndMaintenanceApp
             statsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             statsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-            var totalCredits = IncomeLedgerDataAccess.GetAll().Sum(entry => entry.Amount);
+            var incomeTotal = IncomeLedgerDataAccess.GetAll().Sum(entry => entry.Amount);
             var expenseEntries = ExpenseLedgerDataAccess.GetAll();
-            var totalDebits = expenseEntries.Sum(entry => entry.Amount);
+            var expenseTotal = expenseEntries.Sum(entry => entry.Amount);
             var incomeEntries = IncomeLedgerDataAccess.GetAll();
             var currentMonthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
             var currentMonthName = currentMonthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+            var currentYearStart = new DateTime(DateTime.Today.Year, 1, 1);
+            var currentPeriodEnd = currentMonthStart.AddMonths(1);
 
             decimal SumForMonth(IEnumerable<(DateTime? EntryDate, string SourceFile, decimal Amount)> entries, DateTime monthStart)
             {
@@ -352,37 +355,56 @@ namespace RepairAndMaintenanceApp
                     .Sum(entry => entry.Amount);
             }
 
+            decimal SumForYearToDate(IEnumerable<(DateTime? EntryDate, string SourceFile, decimal Amount)> entries)
+            {
+                var monthNames = Enumerable.Range(0, DateTime.Today.Month)
+                    .Select(month => new DateTime(DateTime.Today.Year, month + 1, 1)
+                        .ToString("MMMM yyyy", CultureInfo.InvariantCulture))
+                    .ToArray();
+
+                return entries
+                    .Where(entry =>
+                        (entry.EntryDate.HasValue
+                            && entry.EntryDate.Value >= currentYearStart
+                            && entry.EntryDate.Value < currentPeriodEnd)
+                        || (!entry.EntryDate.HasValue
+                            && monthNames.Any(monthName =>
+                                entry.SourceFile.Contains(monthName, StringComparison.OrdinalIgnoreCase))))
+                    .Sum(entry => entry.Amount);
+            }
+
             var incomeMonthEntries = incomeEntries.Select(entry => (entry.EntryDate, entry.SourceFile, entry.Amount));
             var expenseMonthEntries = expenseEntries.Select(entry => (entry.EntryDate, entry.SourceFile, entry.Amount));
             var currentMonthIncomeTotal = SumForMonth(incomeMonthEntries, currentMonthStart);
             var currentMonthExpenseTotal = SumForMonth(expenseMonthEntries, currentMonthStart);
+            var yearToDateIncomeTotal = SumForYearToDate(incomeMonthEntries);
+            var yearToDateExpenseTotal = SumForYearToDate(expenseMonthEntries);
             var currencyFormat = CultureInfo.GetCultureInfo("en-IN");
             var incomeVsExpenses = CreateMetricCard(
                 "Income vs. Expenses",
-                $"₹{totalCredits.ToString("#,##0.00", currencyFormat)}",
-                $"₹{totalDebits.ToString("#,##0.00", currencyFormat)}",
+                $"₹{incomeTotal.ToString("#,##0.00", currencyFormat)}",
+                $"₹{expenseTotal.ToString("#,##0.00", currencyFormat)}",
                 "Income",
                 "Expenses",
                 Color.FromArgb(68, 101, 128),
                 Color.FromArgb(207, 183, 122),
                 true,
-                $"₹{(totalCredits - totalDebits).ToString("#,##0.00", currencyFormat)}",
+                $"₹{(incomeTotal - expenseTotal).ToString("#,##0.00", currencyFormat)}",
                 "Balance");
-            var (totalPayables, totalOverdue) = GetPayableTotals();
-            var payables = CreateMetricCard(
-                "Total Payables",
-                $"₹{totalPayables.ToString("#,##0.00", currencyFormat)}",
-                $"₹{totalOverdue.ToString("#,##0.00", currencyFormat)}",
-                "Total Payables",
-                "Overdue",
+            var yearToDateSummary = CreateMetricCard(
+                $"Year-to-Date Summary ({DateTime.Today.Year})",
+                $"₹{yearToDateIncomeTotal.ToString("#,##0.00", currencyFormat)}",
+                $"₹{yearToDateExpenseTotal.ToString("#,##0.00", currencyFormat)}",
+                "Income",
+                "Expenses",
                 Color.FromArgb(54, 107, 125),
                 Color.FromArgb(207, 183, 122),
                 false,
-                $"₹{(totalPayables - totalOverdue).ToString("#,##0.00", currencyFormat)}",
-                "Balance to Pay");
-            payables.Margin = Padding.Empty;
+                $"₹{(yearToDateIncomeTotal - yearToDateExpenseTotal).ToString("#,##0.00", currencyFormat)}",
+                "Net Result");
+            yearToDateSummary.Margin = Padding.Empty;
             statsLayout.Controls.Add(incomeVsExpenses, 0, 0);
-            statsLayout.Controls.Add(payables, 1, 0);
+            statsLayout.Controls.Add(yearToDateSummary, 1, 0);
 
             var bottomRow = new TableLayoutPanel
             {
@@ -900,61 +922,5 @@ namespace RepairAndMaintenanceApp
             return panel;
         }
 
-        private static (decimal TotalPayables, decimal TotalOverdue) GetPayableTotals()
-        {
-            var payableTransactions = JournalTransactionDataAccess.GetAll()
-                .Where(transaction =>
-                    transaction.Particulars.Contains("supplier", StringComparison.OrdinalIgnoreCase)
-                    || transaction.Particulars.Contains("vendor", StringComparison.OrdinalIgnoreCase)
-                    || transaction.Particulars.Contains("payable", StringComparison.OrdinalIgnoreCase)
-                    || transaction.Particulars.Contains("creditor", StringComparison.OrdinalIgnoreCase))
-                .GroupBy(transaction => transaction.Particulars.Trim(), StringComparer.OrdinalIgnoreCase);
-
-            var totalPayables = 0m;
-            var totalOverdue = 0m;
-            var today = DateTime.Today;
-
-            foreach (var account in payableTransactions)
-            {
-                var outstandingCredits = new List<(decimal Amount, DateTime? EntryDate)>();
-                var prepayment = 0m;
-
-                foreach (var transaction in account
-                    .OrderBy(x => x.EntryDate ?? DateTime.MaxValue)
-                    .ThenBy(x => x.Id))
-                {
-                    var debit = transaction.Debit;
-                    for (var index = 0; index < outstandingCredits.Count && debit > 0m; index++)
-                    {
-                        var offset = Math.Min(outstandingCredits[index].Amount, debit);
-                        outstandingCredits[index] = (outstandingCredits[index].Amount - offset, outstandingCredits[index].EntryDate);
-                        debit -= offset;
-                    }
-
-                    outstandingCredits.RemoveAll(credit => credit.Amount == 0m);
-                    prepayment += debit;
-
-                    var creditAmount = transaction.Credit;
-                    var prepaymentOffset = Math.Min(creditAmount, prepayment);
-                    creditAmount -= prepaymentOffset;
-                    prepayment -= prepaymentOffset;
-                    if (creditAmount > 0m)
-                    {
-                        outstandingCredits.Add((creditAmount, transaction.EntryDate));
-                    }
-                }
-
-                foreach (var outstandingCredit in outstandingCredits)
-                {
-                    totalPayables += outstandingCredit.Amount;
-                    if (outstandingCredit.EntryDate.HasValue && outstandingCredit.EntryDate.Value.Date < today)
-                    {
-                        totalOverdue += outstandingCredit.Amount;
-                    }
-                }
-            }
-
-            return (totalPayables, totalOverdue);
-        }
     }
 }
