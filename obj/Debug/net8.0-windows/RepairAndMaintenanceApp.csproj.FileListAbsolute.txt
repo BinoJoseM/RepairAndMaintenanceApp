@@ -215,3 +215,9 @@ C:\Users\binom\AppData\Local\Temp\dashboardbuild\RepairAndMaintenanceApp.deps.js
 C:\Users\binom\AppData\Local\Temp\dashboardbuild\RepairAndMaintenanceApp.runtimeconfig.json
 C:\Users\binom\AppData\Local\Temp\dashboardbuild\RepairAndMaintenanceApp.dll
 C:\Users\binom\AppData\Local\Temp\dashboardbuild\RepairAndMaintenanceApp.pdb
+C:\Users\binom\AppData\Local\Temp\chk\Resources\white-Home.png
+C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.exe
+C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.deps.json
+C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.runtimeconfig.json
+C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.dll
+C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.pdb

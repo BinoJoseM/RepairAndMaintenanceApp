@@ -23,7 +23,7 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             if (selectedDate.HasValue)
             {
-                sql += " AND date(e.EntryDate) = date(@entryDate)";
+                sql += " AND date(e.EntryDate) >= date(@monthStart) AND date(e.EntryDate) < date(@nextMonthStart)";
             }
 
             using var command = new SqliteCommand(sql, connection);
@@ -35,7 +35,9 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             if (selectedDate.HasValue)
             {
-                command.Parameters.AddWithValue("@entryDate", selectedDate.Value.ToString("yyyy-MM-dd"));
+                var monthStart = new DateTime(selectedDate.Value.Year, selectedDate.Value.Month, 1);
+                command.Parameters.AddWithValue("@monthStart", monthStart.ToString("yyyy-MM-dd"));
+                command.Parameters.AddWithValue("@nextMonthStart", monthStart.AddMonths(1).ToString("yyyy-MM-dd"));
             }
 
             using var reader = command.ExecuteReader();

@@ -23,20 +23,18 @@ namespace RepairAndMaintenanceApp.DataAccess
                 return Path.GetFullPath(explicitPath);
             }
 
+            // Development layout: keep using the existing project-root database.
             var projectRootCandidate = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "RepairMaintenanceAccounting.db"));
-            var directCandidate = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RepairMaintenanceAccounting.db"));
-
-            if (File.Exists(projectRootCandidate))
+            var isDevLayout = AppDomain.CurrentDomain.BaseDirectory.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase);
+            if (isDevLayout && File.Exists(projectRootCandidate))
             {
                 return projectRootCandidate;
             }
 
-            if (Directory.Exists(Path.GetDirectoryName(projectRootCandidate)!))
-            {
-                return projectRootCandidate;
-            }
-
-            return directCandidate;
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "RepairAndMaintenanceApp",
+                "RepairMaintenanceAccounting.db");
         }
 
         private static void SyncDatabaseCopiesIfNeeded()
@@ -44,7 +42,8 @@ namespace RepairAndMaintenanceApp.DataAccess
             var candidateRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "RepairMaintenanceAccounting.db"));
             var runtimeDb = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RepairMaintenanceAccounting.db"));
 
-            if (string.Equals(candidateRoot, runtimeDb, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(candidateRoot, runtimeDb, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(DatabasePath, candidateRoot, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -285,7 +284,9 @@ namespace RepairAndMaintenanceApp.DataAccess
             }
 
             var runtimeDatabasePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RepairMaintenanceAccounting.db"));
-            if (!string.Equals(DatabasePath, runtimeDatabasePath, StringComparison.OrdinalIgnoreCase)
+            var projectDatabasePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "RepairMaintenanceAccounting.db"));
+            if (string.Equals(DatabasePath, projectDatabasePath, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(DatabasePath, runtimeDatabasePath, StringComparison.OrdinalIgnoreCase)
                 && File.Exists(DatabasePath))
             {
                 File.Copy(DatabasePath, runtimeDatabasePath, overwrite: true);
@@ -1050,23 +1051,6 @@ namespace RepairAndMaintenanceApp.DataAccess
                 }
             }
 
-            var searchRoot = new DirectoryInfo(AppContext.BaseDirectory);
-            for (var i = 0; i < 6; i++)
-            {
-                var matches = searchRoot.GetFiles(workbookFileName, SearchOption.AllDirectories);
-                if (matches.Length > 0)
-                {
-                    return matches[0].FullName;
-                }
-
-                if (searchRoot.Parent == null)
-                {
-                    break;
-                }
-
-                searchRoot = searchRoot.Parent;
-            }
-
             return null;
         }
 
@@ -1089,7 +1073,8 @@ namespace RepairAndMaintenanceApp.DataAccess
                 var full = Path.GetFullPath(directory);
                 if (Directory.Exists(full))
                 {
-                    foreach (var file in Directory.EnumerateFiles(full, "*.xlsx", SearchOption.AllDirectories))
+                    var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
+                    foreach (var file in Directory.EnumerateFiles(full, "*.xlsx", options))
                     {
                         files.Add(file);
                     }

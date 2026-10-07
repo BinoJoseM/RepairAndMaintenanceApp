@@ -154,7 +154,9 @@ namespace RepairAndMaintenanceApp
             {
                 grid.Rows.Clear();
 
-                var entries = IncomeService.GetAll();
+                var today = DateTime.Today;
+                var entries = IncomeService.GetAll()
+                    .Where(x => x.EntryDate.HasValue && x.EntryDate.Value.Year == today.Year && x.EntryDate.Value.Month == today.Month);
                 foreach (var item in entries)
                 {
                     var rowIndex = grid.Rows.Add(
@@ -426,7 +428,7 @@ namespace RepairAndMaintenanceApp
             {
                 var selectedCategory = categoriesBox.SelectedItem?.ToString() ?? "All categories";
 
-                var entries = IncomeService.GetAll(selectedCategory, monthAndDateBox.Checked ? monthAndDateBox.Value : null);
+                var entries = IncomeService.GetAll(selectedCategory, monthAndDateBox.Checked ? monthAndDateBox.Value : DateTime.Today);
                 grid.Rows.Clear();
 
                 foreach (var item in entries)

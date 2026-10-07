@@ -1,0 +1,3 @@
+K:\Publish\RepairApp\RepairAndMaintenanceApp.pdb
+K:\Publish\RepairApp\Resources\white-Home.png
+K:\Publish\RepairApp\RepairAndMaintenanceApp.exe

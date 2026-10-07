@@ -54,7 +54,7 @@ namespace RepairAndMaintenanceApp
 
             var monthAndDateLabel = new Label
             {
-                Text = "Month / Date",
+                Text = "Month",
                 AutoSize = true,
                 Location = new Point(8, 19),
                 ForeColor = Color.FromArgb(60, 72, 84),
@@ -66,7 +66,7 @@ namespace RepairAndMaintenanceApp
                 Width = 150,
                 Location = new Point(108, 15),
                 Format = DateTimePickerFormat.Custom,
-                CustomFormat = "yyyy-MM-dd",
+                CustomFormat = "MMMM yyyy",
                 ShowCheckBox = true,
                 Checked = false,
                 BackColor = Color.White,
@@ -163,7 +163,9 @@ namespace RepairAndMaintenanceApp
             {
                 grid.Rows.Clear();
 
-                var entries = ExpenseService.GetAll();
+                var today = DateTime.Today;
+                var entries = ExpenseService.GetAll()
+                    .Where(x => x.EntryDate.HasValue && x.EntryDate.Value.Year == today.Year && x.EntryDate.Value.Month == today.Month);
                 foreach (var item in entries)
                 {
                     var rowIndex = grid.Rows.Add(
@@ -436,7 +438,7 @@ namespace RepairAndMaintenanceApp
                 var selectedDate = monthAndDateBox.Value.ToString("yyyy-MM-dd");
                 var selectedCategory = categoriesBox.SelectedItem?.ToString() ?? "All categories";
 
-                var entries = ExpenseService.GetAll(selectedCategory, monthAndDateBox.Checked ? monthAndDateBox.Value : null);
+                var entries = ExpenseService.GetAll(selectedCategory, monthAndDateBox.Checked ? monthAndDateBox.Value : DateTime.Today);
                 grid.Rows.Clear();
 
                 foreach (var item in entries)
