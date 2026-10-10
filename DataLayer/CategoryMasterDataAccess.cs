@@ -65,8 +65,23 @@ namespace RepairAndMaintenanceApp.DataLayer
             command.ExecuteNonQuery();
         }
 
+        public static bool IsUsedInParticulars(int id)
+        {
+            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM ParticularMaster WHERE CategoryId = @id";
+            command.Parameters.AddWithValue("@id", id);
+            return Convert.ToInt32(command.ExecuteScalar()) > 0;
+        }
+
         public static void Delete(int id)
         {
+            if (IsUsedInParticulars(id))
+            {
+                throw new InvalidOperationException("This category is mapped to particulars and cannot be deleted.");
+            }
+
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
             using var command = connection.CreateCommand();

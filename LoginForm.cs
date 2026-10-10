@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using RepairAndMaintenanceApp.DataAccess;
 
@@ -14,22 +13,20 @@ namespace RepairAndMaintenanceApp
 
         public LoginForm()
         {
-            Text = "Accounting Sign In";
+            Text = "Repair & Maintenance App - Sign In";
             Width = 520;
             Height = 360;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None;
-            BackColor = Color.FromArgb(245, 247, 250);
+            BackColor = Color.FromArgb(244, 246, 249);
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = true;
             Font = new Font("Segoe UI", 10F, FontStyle.Regular);
-            Paint += LoginForm_Paint;
-
             var outerPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(245, 247, 250),
+                BackColor = Color.FromArgb(244, 246, 249),
                 Padding = new Padding(0)
             };
 
@@ -37,13 +34,13 @@ namespace RepairAndMaintenanceApp
             {
                 Dock = DockStyle.Top,
                 Height = 70,
-                BackColor = Color.FromArgb(32, 74, 140)
+                BackColor = Color.FromArgb(79, 100, 135)
             };
-            header.Paint += Header_Paint;
 
             var headerTitle = new Label
             {
-                Text = "Accounting Workspace",
+                Text = "Repair & Maintenance App",
+                UseMnemonic = false,
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 16F, FontStyle.Bold),
                 AutoSize = true,
@@ -53,12 +50,14 @@ namespace RepairAndMaintenanceApp
             var closeButton = new Button
             {
                 Text = "×",
-                Size = new Size(28, 28),
-                Location = new Point(468, 18),
+                Size = new Size(36, 36),
+                Location = new Point(header.ClientSize.Width - 52, (header.Height - 36) / 2),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.White,
-                BackColor = Color.FromArgb(32, 74, 140),
-                Font = new Font("Segoe UI", 15F, FontStyle.Bold)
+                BackColor = Color.FromArgb(79, 100, 135),
+                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter
             };
             closeButton.FlatAppearance.BorderSize = 0;
             closeButton.Click += (_, _) => Close();
@@ -69,14 +68,14 @@ namespace RepairAndMaintenanceApp
             var content = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(245, 247, 250),
+                BackColor = Color.FromArgb(244, 246, 249),
                 Padding = new Padding(30, 20, 30, 20)
             };
 
             var subTitle = new Label
             {
                 Text = "Welcome back",
-                ForeColor = Color.FromArgb(42, 62, 82),
+                ForeColor = Color.FromArgb(40, 46, 58),
                 Font = new Font("Segoe UI", 20F, FontStyle.Bold),
                 AutoSize = true,
                 Location = new Point(30, 12)
@@ -85,7 +84,7 @@ namespace RepairAndMaintenanceApp
             var hint = new Label
             {
                 Text = "Sign in to continue to your workspace",
-                ForeColor = Color.FromArgb(102, 112, 128),
+                ForeColor = Color.FromArgb(109, 120, 134),
                 Font = new Font("Segoe UI", 10F, FontStyle.Regular),
                 AutoSize = true,
                 Location = new Point(32, 52)
@@ -94,7 +93,7 @@ namespace RepairAndMaintenanceApp
             var lblUsername = new Label
             {
                 Text = "Username",
-                ForeColor = Color.FromArgb(42, 62, 82),
+                ForeColor = Color.FromArgb(40, 46, 58),
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 AutoSize = true,
                 Location = new Point(30, 86)
@@ -103,7 +102,7 @@ namespace RepairAndMaintenanceApp
             var lblPassword = new Label
             {
                 Text = "Password",
-                ForeColor = Color.FromArgb(42, 62, 82),
+                ForeColor = Color.FromArgb(40, 46, 58),
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 AutoSize = true,
                 Location = new Point(30, 154)
@@ -115,7 +114,7 @@ namespace RepairAndMaintenanceApp
                 Width = 420,
                 Height = 34,
                 BackColor = Color.White,
-                ForeColor = Color.FromArgb(42, 62, 82),
+                ForeColor = Color.FromArgb(40, 46, 58),
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 11F, FontStyle.Regular)
             };
@@ -126,7 +125,7 @@ namespace RepairAndMaintenanceApp
                 Width = 420,
                 Height = 34,
                 BackColor = Color.White,
-                ForeColor = Color.FromArgb(42, 62, 82),
+                ForeColor = Color.FromArgb(40, 46, 58),
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 11F, FontStyle.Regular),
                 UseSystemPasswordChar = true
@@ -138,13 +137,13 @@ namespace RepairAndMaintenanceApp
                 Location = new Point(30, 230),
                 Width = 120,
                 Height = 40,
-                BackColor = Color.FromArgb(0, 114, 230),
+                BackColor = Color.FromArgb(68, 85, 120),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold)
             };
             btnLogin.FlatAppearance.BorderSize = 0;
-            btnLogin.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 98, 196);
+            btnLogin.FlatAppearance.MouseOverBackColor = Color.FromArgb(58, 73, 105);
 
             AcceptButton = btnLogin;
 
@@ -154,8 +153,8 @@ namespace RepairAndMaintenanceApp
                 Location = new Point(162, 230),
                 Width = 95,
                 Height = 40,
-                BackColor = Color.FromArgb(232, 236, 240),
-                ForeColor = Color.FromArgb(65, 81, 98),
+                BackColor = Color.FromArgb(232, 235, 240),
+                ForeColor = Color.FromArgb(68, 85, 120),
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10F, FontStyle.Regular)
             };
@@ -179,45 +178,22 @@ namespace RepairAndMaintenanceApp
             Controls.Add(outerPanel);
         }
 
-        private void LoginForm_Paint(object? sender, PaintEventArgs e)
-        {
-            e.Graphics.Clear(Color.FromArgb(245, 247, 250));
-            using var borderPen = new Pen(Color.FromArgb(208, 214, 222), 1);
-            e.Graphics.DrawRectangle(borderPen, new Rectangle(0, 0, Width - 1, Height - 1));
-        }
-
-        private void Header_Paint(object? sender, PaintEventArgs e)
-        {
-            if (sender is not Panel panel)
-            {
-                return;
-            }
-
-            using var gradientBrush = new LinearGradientBrush(
-                panel.ClientRectangle,
-                Color.FromArgb(32, 74, 140),
-                Color.FromArgb(46, 102, 184),
-                LinearGradientMode.Horizontal);
-
-            e.Graphics.FillRectangle(gradientBrush, panel.ClientRectangle);
-        }
-
         private void BtnLogin_Click(object? sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(txtUsername.Text) || string.IsNullOrWhiteSpace(txtPassword.Text))
             {
-                MessageBox.Show("Please enter both username and password.", "Login Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("Please enter both username and password.", "Login Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             var isValid = SqliteDataAccess.ValidateUser(txtUsername.Text.Trim(), txtPassword.Text.Trim());
             if (!isValid)
             {
-                MessageBox.Show("Invalid username or password.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AppMessageBox.Show("Invalid username or password.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            var mainForm = new MainForm();
+            var mainForm = new DashboardForm();
             mainForm.Show();
             Hide();
         }

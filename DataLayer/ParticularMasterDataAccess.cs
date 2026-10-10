@@ -60,6 +60,31 @@ namespace RepairAndMaintenanceApp.DataLayer
             return categories;
         }
 
+        public static List<string> GetNamesByCategory(string categoryName)
+        {
+            var names = new List<string>();
+            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
+            connection.Open();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT p.ParticularName
+                FROM ParticularMaster p
+                JOIN CategoryMaster c ON c.Id = p.CategoryId
+                WHERE c.CategoryName = @categoryName AND c.IsActive = 1
+                ORDER BY p.ParticularName
+            ";
+            command.Parameters.AddWithValue("@categoryName", categoryName);
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                names.Add(reader.GetString(0));
+            }
+
+            return names;
+        }
+
         public static void Add(ParticularMaster particular)
         {
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
@@ -83,8 +108,23 @@ namespace RepairAndMaintenanceApp.DataLayer
             command.ExecuteNonQuery();
         }
 
+        public static bool IsUsedInJournalTransactions(int id)
+        {
+            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM JournalTransactions WHERE ParticularId = @id";
+            command.Parameters.AddWithValue("@id", id);
+            return Convert.ToInt32(command.ExecuteScalar()) > 0;
+        }
+
         public static void Delete(int id)
         {
+            if (IsUsedInJournalTransactions(id))
+            {
+                throw new InvalidOperationException("This particular is used in journal transactions and cannot be deleted.");
+            }
+
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
             using var command = connection.CreateCommand();

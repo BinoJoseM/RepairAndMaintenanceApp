@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Xml;
 using Microsoft.Data.Sqlite;
 
@@ -22,20 +23,18 @@ namespace RepairAndMaintenanceApp.DataAccess
                 return Path.GetFullPath(explicitPath);
             }
 
+            // Development layout: keep using the existing project-root database.
             var projectRootCandidate = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "RepairMaintenanceAccounting.db"));
-            var directCandidate = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RepairMaintenanceAccounting.db"));
-
-            if (File.Exists(projectRootCandidate))
+            var isDevLayout = AppDomain.CurrentDomain.BaseDirectory.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase);
+            if (isDevLayout && File.Exists(projectRootCandidate))
             {
                 return projectRootCandidate;
             }
 
-            if (Directory.Exists(Path.GetDirectoryName(projectRootCandidate)!))
-            {
-                return projectRootCandidate;
-            }
-
-            return directCandidate;
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "RepairAndMaintenanceApp",
+                "RepairMaintenanceAccounting.db");
         }
 
         private static void SyncDatabaseCopiesIfNeeded()
@@ -43,7 +42,8 @@ namespace RepairAndMaintenanceApp.DataAccess
             var candidateRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "RepairMaintenanceAccounting.db"));
             var runtimeDb = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RepairMaintenanceAccounting.db"));
 
-            if (string.Equals(candidateRoot, runtimeDb, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(candidateRoot, runtimeDb, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(DatabasePath, candidateRoot, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -92,13 +92,13 @@ namespace RepairAndMaintenanceApp.DataAccess
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
-                CREATE TABLE IF NOT EXISTS JournalEntries (
+                CREATE TABLE IF NOT EXISTS JournalHeader (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     EntryDate TEXT NOT NULL,
+                    Reference TEXT NULL,
                     Description TEXT NOT NULL,
-                    Account TEXT NOT NULL,
-                    Debit REAL NOT NULL DEFAULT 0,
-                    Credit REAL NOT NULL DEFAULT 0,
+                    Status TEXT NOT NULL DEFAULT 'Draft' CHECK (Status IN ('Draft', 'Posted', 'Void')),
+                    SourceDocumentReference TEXT NULL,
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
@@ -180,7 +180,8 @@ namespace RepairAndMaintenanceApp.DataAccess
                 CREATE TABLE IF NOT EXISTS JournalTransactions (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     EntryDate TEXT NULL,
-                    Particulars TEXT NOT NULL,
+                    CategoryId INTEGER NULL REFERENCES CategoryMaster(Id),
+                    ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
                     Debit REAL NOT NULL DEFAULT 0,
                     Credit REAL NOT NULL DEFAULT 0,
                     SourceFile TEXT NOT NULL,
@@ -190,6 +191,7 @@ namespace RepairAndMaintenanceApp.DataAccess
 
                 CREATE TABLE IF NOT EXISTS ExpenseLedgerEntries (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
                     EntryDate TEXT NULL,
                     CategoryId INTEGER NULL REFERENCES CategoryMaster(Id),
                     ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
@@ -201,6 +203,7 @@ namespace RepairAndMaintenanceApp.DataAccess
 
                 CREATE TABLE IF NOT EXISTS IncomeLedgerEntries (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
                     EntryDate TEXT NULL,
                     CategoryId INTEGER NULL REFERENCES CategoryMaster(Id),
                     ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
@@ -212,8 +215,10 @@ namespace RepairAndMaintenanceApp.DataAccess
 
                 CREATE TABLE IF NOT EXISTS BalanceSheetItems (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
+                    ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
                     StatementTitle TEXT NOT NULL,
-                    Particulars TEXT NOT NULL,
+                    EntryDate TEXT NULL,
                     Debit REAL NOT NULL DEFAULT 0,
                     Credit REAL NOT NULL DEFAULT 0,
                     LineType TEXT NOT NULL,
@@ -245,6 +250,7 @@ namespace RepairAndMaintenanceApp.DataAccess
             ";
             cmd.ExecuteNonQuery();
 
+            MigrateJournalHeader(connection);
             MigrateCategorySchema(connection);
 
             SeedDefaultUserIfNeeded();
@@ -260,7 +266,237 @@ namespace RepairAndMaintenanceApp.DataAccess
                 ImportSemanticWorkbookDataIfNeeded(workbookPath);
             }
 
+            BackfillJournalTransactionParticularIds();
+            BackfillJournalTransactionCategoryIds();
+            BackfillBalanceSheetParticularIds();
+            BackfillBalanceSheetJournalIds();
+            BackfillBalanceSheetParticularIds();
+            MoveLedgerAmountsToJournalSides();
             SyncCategoriesFromLedgerEntries();
+            SyncRuntimeDatabaseCopy();
+        }
+
+        private static void SyncRuntimeDatabaseCopy()
+        {
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("REPAIR_MAINTENANCE_DB_PATH")))
+            {
+                return;
+            }
+
+            var runtimeDatabasePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RepairMaintenanceAccounting.db"));
+            var projectDatabasePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "RepairMaintenanceAccounting.db"));
+            if (string.Equals(DatabasePath, projectDatabasePath, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(DatabasePath, runtimeDatabasePath, StringComparison.OrdinalIgnoreCase)
+                && File.Exists(DatabasePath))
+            {
+                File.Copy(DatabasePath, runtimeDatabasePath, overwrite: true);
+            }
+        }
+
+        private static void BackfillJournalTransactionParticularIds()
+        {
+            using var connection = new SqliteConnection($"Data Source={DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                UPDATE JournalTransactions
+                SET ParticularId = (
+                    SELECT CASE WHEN COUNT(*) = 1 THEN MAX(linked.ParticularId) END
+                    FROM (
+                        SELECT ParticularId FROM IncomeLedgerEntries
+                        WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL
+                        UNION ALL
+                        SELECT ParticularId FROM ExpenseLedgerEntries
+                        WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL
+                    ) linked
+                )
+                WHERE ParticularId IS NULL
+                    AND (SELECT COUNT(*) FROM IncomeLedgerEntries
+                         WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL)
+                        +
+                        (SELECT COUNT(*) FROM ExpenseLedgerEntries
+                         WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL) = 1
+
+                ;
+
+                UPDATE JournalTransactions
+                SET ParticularId = (
+                    SELECT CASE WHEN COUNT(*) = 1 THEN MIN(candidates.ParticularId) END
+                    FROM (
+                        SELECT e.ParticularId
+                        FROM IncomeLedgerEntries e
+                        WHERE e.SourceFile = JournalTransactions.SourceFile
+                            AND COALESCE(date(e.EntryDate), '') = COALESCE(date(JournalTransactions.EntryDate), '')
+                            AND round(e.Amount, 2) = round(JournalTransactions.Credit, 2)
+                            AND round(JournalTransactions.Debit, 2) = 0
+                            AND e.ParticularId IS NOT NULL
+                        UNION
+                        SELECT e.ParticularId
+                        FROM ExpenseLedgerEntries e
+                        WHERE e.SourceFile = JournalTransactions.SourceFile
+                            AND COALESCE(date(e.EntryDate), '') = COALESCE(date(JournalTransactions.EntryDate), '')
+                            AND round(e.Amount, 2) = round(JournalTransactions.Debit, 2)
+                            AND round(JournalTransactions.Credit, 2) = 0
+                            AND e.ParticularId IS NOT NULL
+                    ) candidates
+                )
+                WHERE ParticularId IS NULL
+                    AND (
+                        SELECT COUNT(*)
+                        FROM (
+                            SELECT e.ParticularId
+                            FROM IncomeLedgerEntries e
+                            WHERE e.SourceFile = JournalTransactions.SourceFile
+                                AND COALESCE(date(e.EntryDate), '') = COALESCE(date(JournalTransactions.EntryDate), '')
+                                AND round(e.Amount, 2) = round(JournalTransactions.Credit, 2)
+                                AND round(JournalTransactions.Debit, 2) = 0
+                                AND e.ParticularId IS NOT NULL
+                            UNION
+                            SELECT e.ParticularId
+                            FROM ExpenseLedgerEntries e
+                            WHERE e.SourceFile = JournalTransactions.SourceFile
+                                AND COALESCE(date(e.EntryDate), '') = COALESCE(date(JournalTransactions.EntryDate), '')
+                                AND round(e.Amount, 2) = round(JournalTransactions.Debit, 2)
+                                AND round(JournalTransactions.Credit, 2) = 0
+                                AND e.ParticularId IS NOT NULL
+                        )
+                    ) = 1
+            ";
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        // Income is Dr, expense is Cr. Idempotent: only touches linked rows still on the other side.
+        private static void MoveLedgerAmountsToJournalSides()
+        {
+            using var connection = new SqliteConnection($"Data Source={DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                UPDATE BalanceSheetItems
+                SET Debit = Credit, Credit = 0
+                WHERE Credit > 0 AND Debit = 0
+                    AND JournalId IN (SELECT JournalId FROM IncomeLedgerEntries WHERE JournalId IS NOT NULL);
+
+                UPDATE JournalTransactions
+                SET Debit = Credit, Credit = 0
+                WHERE Credit > 0 AND Debit = 0
+                    AND Id IN (SELECT JournalId FROM IncomeLedgerEntries WHERE JournalId IS NOT NULL);
+
+                UPDATE BalanceSheetItems
+                SET Credit = Debit, Debit = 0
+                WHERE Debit > 0 AND Credit = 0
+                    AND JournalId IN (SELECT JournalId FROM ExpenseLedgerEntries WHERE JournalId IS NOT NULL);
+
+                UPDATE JournalTransactions
+                SET Credit = Debit, Debit = 0
+                WHERE Debit > 0 AND Credit = 0
+                    AND Id IN (SELECT JournalId FROM ExpenseLedgerEntries WHERE JournalId IS NOT NULL);
+            ";
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        private static void BackfillBalanceSheetJournalIds()
+        {
+            using var connection = new SqliteConnection($"Data Source={DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                UPDATE BalanceSheetItems
+                SET JournalId = (
+                    SELECT jt.Id
+                    FROM JournalTransactions jt
+                    WHERE jt.SourceFile = BalanceSheetItems.SourceFile
+                        AND COALESCE(date(jt.EntryDate), '') = COALESCE(date(BalanceSheetItems.EntryDate), '')
+                        AND jt.ParticularId = BalanceSheetItems.ParticularId
+                        AND round(jt.Debit, 2) = round(BalanceSheetItems.Debit, 2)
+                        AND round(jt.Credit, 2) = round(BalanceSheetItems.Credit, 2)
+                )
+                WHERE JournalId IS NULL
+                    AND 1 = (
+                        SELECT COUNT(*)
+                        FROM JournalTransactions jt
+                        WHERE jt.SourceFile = BalanceSheetItems.SourceFile
+                            AND COALESCE(date(jt.EntryDate), '') = COALESCE(date(BalanceSheetItems.EntryDate), '')
+                            AND jt.ParticularId = BalanceSheetItems.ParticularId
+                            AND round(jt.Debit, 2) = round(BalanceSheetItems.Debit, 2)
+                            AND round(jt.Credit, 2) = round(BalanceSheetItems.Credit, 2)
+                    )
+            ";
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        private static void BackfillBalanceSheetParticularIds()
+        {
+            using var connection = new SqliteConnection($"Data Source={DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                UPDATE BalanceSheetItems
+                SET ParticularId = (
+                    SELECT CASE WHEN
+                        (SELECT COUNT(*) FROM IncomeLedgerEntries
+                         WHERE JournalId = BalanceSheetItems.JournalId AND ParticularId IS NOT NULL)
+                        +
+                        (SELECT COUNT(*) FROM ExpenseLedgerEntries
+                         WHERE JournalId = BalanceSheetItems.JournalId AND ParticularId IS NOT NULL) = 1
+                    THEN COALESCE(
+                        (SELECT ParticularId FROM IncomeLedgerEntries
+                         WHERE JournalId = BalanceSheetItems.JournalId AND ParticularId IS NOT NULL LIMIT 1),
+                        (SELECT ParticularId FROM ExpenseLedgerEntries
+                         WHERE JournalId = BalanceSheetItems.JournalId AND ParticularId IS NOT NULL LIMIT 1)
+                    ) END
+                )
+                WHERE ParticularId IS NULL
+                    AND JournalId IS NOT NULL
+                    AND (SELECT COUNT(*) FROM IncomeLedgerEntries
+                         WHERE JournalId = BalanceSheetItems.JournalId AND ParticularId IS NOT NULL)
+                        +
+                        (SELECT COUNT(*) FROM ExpenseLedgerEntries
+                         WHERE JournalId = BalanceSheetItems.JournalId AND ParticularId IS NOT NULL) = 1
+            ";
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        private static void MigrateJournalHeader(SqliteConnection connection)
+        {
+            using var transaction = connection.BeginTransaction();
+
+            if (TableExists(connection, transaction, "JournalEntries"))
+            {
+                if (!TableExists(connection, transaction, "JournalEntries_Legacy"))
+                {
+                    using var copyLegacyRows = connection.CreateCommand();
+                    copyLegacyRows.Transaction = transaction;
+                    copyLegacyRows.CommandText = @"
+                        INSERT OR IGNORE INTO JournalHeader
+                            (Id, EntryDate, Reference, Description, Status, SourceDocumentReference, CreatedAt)
+                        SELECT Id, EntryDate, NULL, Description, 'Draft', NULL, CreatedAt
+                        FROM JournalEntries;
+
+                        ALTER TABLE JournalEntries RENAME TO JournalEntries_Legacy;
+                    ";
+                    copyLegacyRows.ExecuteNonQuery();
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "Both JournalEntries and JournalEntries_Legacy exist. Resolve the legacy journal tables before continuing.");
+                }
+            }
+
+            transaction.Commit();
         }
 
         public static void SyncCategoriesFromLedgerEntries()
@@ -317,6 +553,12 @@ namespace RepairAndMaintenanceApp.DataAccess
             EnsureLegacyLedgerParticulars(connection, transaction, "IncomeLedgerEntries");
             MigrateLedgerParticularColumn(connection, transaction, "ExpenseLedgerEntries");
             MigrateLedgerParticularColumn(connection, transaction, "IncomeLedgerEntries");
+            EnsureLedgerJournalIdColumns(connection, transaction);
+            MigrateJournalTransactionParticularColumn(connection, transaction);
+            EnsureJournalTransactionCategoryIdColumn(connection, transaction);
+            EnsureBalanceSheetEntryDateColumn(connection, transaction);
+            EnsureBalanceSheetJournalIdColumn(connection, transaction);
+            MigrateBalanceSheetParticularColumn(connection, transaction);
 
             if (TableExists(connection, transaction, "Categories"))
             {
@@ -327,6 +569,291 @@ namespace RepairAndMaintenanceApp.DataAccess
             }
 
             transaction.Commit();
+        }
+
+        private static void EnsureLedgerJournalIdColumns(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            foreach (var tableName in new[] { "ExpenseLedgerEntries", "IncomeLedgerEntries" })
+            {
+                if (!TableExists(connection, transaction, tableName)
+                    || HasColumn(connection, transaction, tableName, "JournalId"))
+                {
+                    continue;
+                }
+
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = $"ALTER TABLE {tableName} ADD COLUMN JournalId INTEGER NULL REFERENCES JournalTransactions(Id)";
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureBalanceSheetEntryDateColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "BalanceSheetItems"))
+            {
+                return;
+            }
+
+            if (!HasColumn(connection, transaction, "BalanceSheetItems", "EntryDate"))
+            {
+                using var addColumn = connection.CreateCommand();
+                addColumn.Transaction = transaction;
+                addColumn.CommandText = "ALTER TABLE BalanceSheetItems ADD COLUMN EntryDate TEXT NULL";
+                addColumn.ExecuteNonQuery();
+            }
+
+            var rowsToBackfill = new List<(long Id, string StatementTitle)>();
+            using (var select = connection.CreateCommand())
+            {
+                select.Transaction = transaction;
+                select.CommandText = "SELECT Id, StatementTitle FROM BalanceSheetItems WHERE EntryDate IS NULL";
+                using var reader = select.ExecuteReader();
+                while (reader.Read())
+                {
+                    rowsToBackfill.Add((reader.GetInt64(0), reader.IsDBNull(1) ? string.Empty : reader.GetString(1)));
+                }
+            }
+
+            foreach (var row in rowsToBackfill)
+            {
+                var entryDate = ParseStatementDate(row.StatementTitle);
+                if (!entryDate.HasValue)
+                {
+                    continue;
+                }
+
+                using var update = connection.CreateCommand();
+                update.Transaction = transaction;
+                update.CommandText = "UPDATE BalanceSheetItems SET EntryDate = @entryDate WHERE Id = @id";
+                update.Parameters.AddWithValue("@entryDate", entryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                update.Parameters.AddWithValue("@id", row.Id);
+                update.ExecuteNonQuery();
+            }
+        }
+
+        private static void MigrateJournalTransactionParticularColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "JournalTransactions")
+                || !HasColumn(connection, transaction, "JournalTransactions", "Particulars"))
+            {
+                return;
+            }
+
+            var hasParticularId = HasColumn(connection, transaction, "JournalTransactions", "ParticularId");
+            if (!hasParticularId)
+            {
+                using var addParticularId = connection.CreateCommand();
+                addParticularId.Transaction = transaction;
+                addParticularId.CommandText = "ALTER TABLE JournalTransactions ADD COLUMN ParticularId INTEGER NULL REFERENCES ParticularMaster(Id)";
+                addParticularId.ExecuteNonQuery();
+            }
+
+            var particularIdByLedgerExpression = @"
+                (
+                    SELECT CASE WHEN
+                        (SELECT COUNT(*) FROM IncomeLedgerEntries
+                         WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL)
+                        +
+                        (SELECT COUNT(*) FROM ExpenseLedgerEntries
+                         WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL) = 1
+                    THEN COALESCE(
+                        (SELECT ParticularId FROM IncomeLedgerEntries
+                         WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL LIMIT 1),
+                        (SELECT ParticularId FROM ExpenseLedgerEntries
+                         WHERE JournalId = JournalTransactions.Id AND ParticularId IS NOT NULL LIMIT 1)
+                    ) END
+                )";
+            var particularIdByNameExpression = @"(
+                SELECT CASE WHEN COUNT(*) = 1 THEN MIN(pm.Id) END
+                FROM ParticularMaster pm
+                WHERE lower(trim(pm.ParticularName)) = lower(trim(JournalTransactions.Particulars))
+            )";
+
+            using (var backfill = connection.CreateCommand())
+            {
+                backfill.Transaction = transaction;
+                backfill.CommandText = $@"
+                    UPDATE JournalTransactions
+                    SET ParticularId = COALESCE(
+                        {(hasParticularId ? "ParticularId," : string.Empty)}
+                        {particularIdByLedgerExpression},
+                        {particularIdByNameExpression}
+                    )
+                    WHERE ParticularId IS NULL
+                ";
+                backfill.ExecuteNonQuery();
+            }
+
+            using var dropLegacyColumn = connection.CreateCommand();
+            dropLegacyColumn.Transaction = transaction;
+            dropLegacyColumn.CommandText = "ALTER TABLE JournalTransactions DROP COLUMN Particulars";
+            dropLegacyColumn.ExecuteNonQuery();
+        }
+
+        private static void EnsureJournalTransactionCategoryIdColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "JournalTransactions")
+                || HasColumn(connection, transaction, "JournalTransactions", "CategoryId"))
+            {
+                return;
+            }
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "ALTER TABLE JournalTransactions ADD COLUMN CategoryId INTEGER NULL REFERENCES CategoryMaster(Id)";
+            command.ExecuteNonQuery();
+        }
+
+        private static void BackfillJournalTransactionCategoryIds()
+        {
+            using var connection = new SqliteConnection($"Data Source={DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                UPDATE JournalTransactions
+                SET CategoryId = COALESCE(
+                    (
+                        SELECT CASE WHEN COUNT(*) = 1 THEN MAX(linked.CategoryId) END
+                        FROM (
+                            SELECT CategoryId FROM IncomeLedgerEntries
+                            WHERE JournalId = JournalTransactions.Id AND CategoryId IS NOT NULL
+                            UNION
+                            SELECT CategoryId FROM ExpenseLedgerEntries
+                            WHERE JournalId = JournalTransactions.Id AND CategoryId IS NOT NULL
+                        ) linked
+                    ),
+                    (
+                        SELECT pm.CategoryId
+                        FROM ParticularMaster pm
+                        WHERE pm.Id = JournalTransactions.ParticularId
+                    )
+                )
+                WHERE CategoryId IS NULL
+            ";
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        private static void EnsureBalanceSheetJournalIdColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "BalanceSheetItems")
+                || HasColumn(connection, transaction, "BalanceSheetItems", "JournalId"))
+            {
+                return;
+            }
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "ALTER TABLE BalanceSheetItems ADD COLUMN JournalId INTEGER NULL REFERENCES JournalTransactions(Id)";
+            command.ExecuteNonQuery();
+        }
+
+        private static void MigrateBalanceSheetParticularColumn(SqliteConnection connection, SqliteTransaction transaction)
+        {
+            if (!TableExists(connection, transaction, "BalanceSheetItems")
+                || (HasColumn(connection, transaction, "BalanceSheetItems", "ParticularId")
+                    && !HasColumn(connection, transaction, "BalanceSheetItems", "Particulars")))
+            {
+                return;
+            }
+
+            const string migratedTableName = "BalanceSheetItems_ParticularMigration";
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $@"
+                DROP TABLE IF EXISTS {migratedTableName};
+                CREATE TABLE {migratedTableName} (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    JournalId INTEGER NULL REFERENCES JournalTransactions(Id),
+                    ParticularId INTEGER NULL REFERENCES ParticularMaster(Id),
+                    StatementTitle TEXT NOT NULL,
+                    EntryDate TEXT NULL,
+                    Debit REAL NOT NULL DEFAULT 0,
+                    Credit REAL NOT NULL DEFAULT 0,
+                    LineType TEXT NOT NULL,
+                    SourceFile TEXT NOT NULL,
+                    SourceRow INTEGER NOT NULL,
+                    UNIQUE(SourceFile, SourceRow)
+                );
+            ";
+            command.ExecuteNonQuery();
+
+            var hasParticularId = HasColumn(connection, transaction, "BalanceSheetItems", "ParticularId");
+            var hasParticulars = HasColumn(connection, transaction, "BalanceSheetItems", "Particulars");
+            var particularIdByNameExpression = hasParticulars
+                ? @"(
+                    SELECT CASE WHEN COUNT(*) = 1 THEN MIN(pm.Id) END
+                    FROM ParticularMaster pm
+                    WHERE lower(trim(pm.ParticularName)) = lower(trim(old.Particulars))
+                )"
+                    : "NULL";
+            var particularIdByLedgerExpression = @"
+                (
+                    SELECT CASE WHEN
+                        (SELECT COUNT(*) FROM IncomeLedgerEntries
+                         WHERE JournalId = old.JournalId AND ParticularId IS NOT NULL)
+                        +
+                        (SELECT COUNT(*) FROM ExpenseLedgerEntries
+                         WHERE JournalId = old.JournalId AND ParticularId IS NOT NULL) = 1
+                    THEN COALESCE(
+                        (SELECT ParticularId FROM IncomeLedgerEntries
+                         WHERE JournalId = old.JournalId AND ParticularId IS NOT NULL LIMIT 1),
+                        (SELECT ParticularId FROM ExpenseLedgerEntries
+                         WHERE JournalId = old.JournalId AND ParticularId IS NOT NULL LIMIT 1)
+                    ) END
+                )";
+            var particularIdExpression = hasParticularId
+                ? $"COALESCE(old.ParticularId, {particularIdByLedgerExpression}, {particularIdByNameExpression})"
+                : $"COALESCE({particularIdByLedgerExpression}, {particularIdByNameExpression})";
+
+            using (var copy = connection.CreateCommand())
+            {
+                copy.Transaction = transaction;
+                copy.CommandText = $@"
+                    INSERT INTO {migratedTableName}
+                        (Id, JournalId, ParticularId, StatementTitle, EntryDate, Debit, Credit, LineType, SourceFile, SourceRow)
+                    SELECT
+                        old.Id,
+                        old.JournalId,
+                        {particularIdExpression},
+                        old.StatementTitle,
+                        old.EntryDate,
+                        old.Debit,
+                        old.Credit,
+                        old.LineType,
+                        old.SourceFile,
+                        old.SourceRow
+                    FROM BalanceSheetItems old;
+
+                    DROP TABLE BalanceSheetItems;
+                    ALTER TABLE {migratedTableName} RENAME TO BalanceSheetItems;
+                ";
+                copy.ExecuteNonQuery();
+            }
+        }
+
+        private static DateTime? ParseStatementDate(string statementTitle)
+        {
+            if (DateTime.TryParse(statementTitle, CultureInfo.GetCultureInfo("en-GB"), DateTimeStyles.None, out var date)
+                || DateTime.TryParse(statementTitle, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+            {
+                return date;
+            }
+
+            var datePattern = @"\b(?:\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|[A-Za-z]{3,9}\s+\d{4})\b";
+            foreach (Match match in Regex.Matches(statementTitle, datePattern))
+            {
+                if (DateTime.TryParse(match.Value, CultureInfo.GetCultureInfo("en-GB"), DateTimeStyles.None, out date)
+                    || DateTime.TryParse(match.Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+                {
+                    return date;
+                }
+            }
+
+            return null;
         }
 
         private static void EnsureLegacyLedgerCategories(SqliteConnection connection, SqliteTransaction transaction, string tableName, string categoryType)
@@ -524,23 +1051,6 @@ namespace RepairAndMaintenanceApp.DataAccess
                 }
             }
 
-            var searchRoot = new DirectoryInfo(AppContext.BaseDirectory);
-            for (var i = 0; i < 6; i++)
-            {
-                var matches = searchRoot.GetFiles(workbookFileName, SearchOption.AllDirectories);
-                if (matches.Length > 0)
-                {
-                    return matches[0].FullName;
-                }
-
-                if (searchRoot.Parent == null)
-                {
-                    break;
-                }
-
-                searchRoot = searchRoot.Parent;
-            }
-
             return null;
         }
 
@@ -563,7 +1073,8 @@ namespace RepairAndMaintenanceApp.DataAccess
                 var full = Path.GetFullPath(directory);
                 if (Directory.Exists(full))
                 {
-                    foreach (var file in Directory.EnumerateFiles(full, "*.xlsx", SearchOption.AllDirectories))
+                    var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
+                    foreach (var file in Directory.EnumerateFiles(full, "*.xlsx", options))
                     {
                         files.Add(file);
                     }
@@ -866,8 +1377,20 @@ namespace RepairAndMaintenanceApp.DataAccess
                 using var insert = connection.CreateCommand();
                 insert.Transaction = transaction;
                 insert.CommandText = @"
-                    INSERT INTO JournalTransactions (EntryDate, Particulars, Debit, Credit, SourceFile, SourceRow)
-                    VALUES (@entryDate, @particulars, @debit, @credit, @sourceFile, @sourceRow)
+                    INSERT INTO JournalTransactions (EntryDate, CategoryId, ParticularId, Debit, Credit, SourceFile, SourceRow)
+                    VALUES (
+                        @entryDate,
+                        (SELECT CASE WHEN COUNT(*) = 1 THEN MIN(CategoryId) END
+                         FROM ParticularMaster
+                         WHERE lower(trim(ParticularName)) = lower(trim(@particulars))),
+                        (SELECT CASE WHEN COUNT(*) = 1 THEN MIN(Id) END
+                         FROM ParticularMaster
+                         WHERE lower(trim(ParticularName)) = lower(trim(@particulars))),
+                        @debit,
+                        @credit,
+                        @sourceFile,
+                        @sourceRow
+                    )
                 ";
                 insert.Parameters.AddWithValue("@entryDate", (object?)entryDate ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@particulars", particulars);
@@ -986,10 +1509,22 @@ namespace RepairAndMaintenanceApp.DataAccess
                 using var insert = connection.CreateCommand();
                 insert.Transaction = transaction;
                 insert.CommandText = @"
-                    INSERT INTO BalanceSheetItems (StatementTitle, Particulars, Debit, Credit, LineType, SourceFile, SourceRow)
-                    VALUES (@statementTitle, @particulars, @debit, @credit, @lineType, @sourceFile, @sourceRow)
+                    INSERT INTO BalanceSheetItems (StatementTitle, EntryDate, ParticularId, Debit, Credit, LineType, SourceFile, SourceRow)
+                    VALUES (
+                        @statementTitle,
+                        @entryDate,
+                        (SELECT CASE WHEN COUNT(*) = 1 THEN MIN(Id) END
+                         FROM ParticularMaster
+                         WHERE lower(trim(ParticularName)) = lower(trim(@particulars))),
+                        @debit,
+                        @credit,
+                        @lineType,
+                        @sourceFile,
+                        @sourceRow
+                    )
                 ";
                 insert.Parameters.AddWithValue("@statementTitle", balanceSheetTitle);
+                insert.Parameters.AddWithValue("@entryDate", (object?)ParseStatementDate(balanceSheetTitle)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@particulars", particulars);
                 insert.Parameters.AddWithValue("@debit", Amount("BS", $"B{row}"));
                 insert.Parameters.AddWithValue("@credit", Amount("BS", $"C{row}"));

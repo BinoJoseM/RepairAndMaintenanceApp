@@ -239,11 +239,11 @@ namespace RepairAndMaintenanceApp
                     IsActive = activeBox.Checked
                 });
                 LoadCategories(searchBox.Text.Trim());
-                MessageBox.Show("Category saved.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Category saved.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception exception) when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("That category already exists.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("That category already exists.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -264,11 +264,11 @@ namespace RepairAndMaintenanceApp
                     IsActive = activeBox.Checked
                 });
                 LoadCategories(searchBox.Text.Trim());
-                MessageBox.Show("Category updated.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Category updated.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception exception) when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("That category already exists.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("That category already exists.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -279,7 +279,13 @@ namespace RepairAndMaintenanceApp
                 return;
             }
 
-            var confirmation = MessageBox.Show("Delete the selected category?", "Delete Category", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (CategoryMasterService.IsUsedInParticulars(selectedCategoryId.Value))
+            {
+                AppMessageBox.Show("This category is mapped to particulars and cannot be deleted.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var confirmation = AppMessageBox.Show("Delete the selected category?", "Delete Category", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (confirmation != DialogResult.Yes)
             {
                 return;
@@ -289,11 +295,11 @@ namespace RepairAndMaintenanceApp
             {
                 CategoryMasterService.Delete(selectedCategoryId.Value);
                 LoadCategories(searchBox.Text.Trim());
-                MessageBox.Show("Category deleted.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Category deleted.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception exception) when (exception.Message.Contains("FOREIGN KEY", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("This category is used by ledger entries or particulars. Deactivate it instead of deleting it.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("This category is used by ledger entries or particulars. Deactivate it instead of deleting it.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -301,7 +307,7 @@ namespace RepairAndMaintenanceApp
         {
             if (string.IsNullOrWhiteSpace(categoryNameBox.Text))
             {
-                MessageBox.Show("Enter a category name.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("Enter a category name.", "Category Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 categoryNameBox.Focus();
                 return false;
             }

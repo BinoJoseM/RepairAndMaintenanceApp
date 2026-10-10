@@ -170,15 +170,17 @@ namespace RepairAndMaintenanceApp
 
             LoadCategories();
             LoadParticulars();
+            categoryBox.SelectedIndex = 0;
         }
 
         private void LoadCategories()
         {
             var categories = ParticularMasterService.GetActiveCategories();
+            categories.Insert(0, new CategoryMaster { Id = 0, CategoryName = "Select" });
             categoryBox.DataSource = categories;
             categoryBox.DisplayMember = "CategoryName";
             categoryBox.ValueMember = "Id";
-            categoryBox.SelectedIndex = categories.Count > 0 ? 0 : -1;
+            categoryBox.SelectedIndex = 0;
         }
 
         private void LoadParticulars(string searchText = "")
@@ -212,10 +214,7 @@ namespace RepairAndMaintenanceApp
             selectedParticularId = null;
             grid.ClearSelection();
             particularNameBox.Clear();
-            if (categoryBox.Items.Count > 0)
-            {
-                categoryBox.SelectedIndex = 0;
-            }
+            categoryBox.SelectedIndex = 0;
             particularNameBox.Focus();
         }
 
@@ -234,11 +233,11 @@ namespace RepairAndMaintenanceApp
                     ParticularName = particularNameBox.Text.Trim()
                 });
                 LoadParticulars(searchBox.Text.Trim());
-                MessageBox.Show("Particular saved.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Particular saved.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception exception) when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("That particular already exists for the selected category.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("That particular already exists for the selected category.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -258,11 +257,11 @@ namespace RepairAndMaintenanceApp
                     ParticularName = particularNameBox.Text.Trim()
                 });
                 LoadParticulars(searchBox.Text.Trim());
-                MessageBox.Show("Particular updated.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Particular updated.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception exception) when (exception.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("That particular already exists for the selected category.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("That particular already exists for the selected category.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -273,7 +272,13 @@ namespace RepairAndMaintenanceApp
                 return;
             }
 
-            var confirmation = MessageBox.Show("Delete the selected particular?", "Delete Particular", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (ParticularMasterService.IsUsedInJournalTransactions(selectedParticularId.Value))
+            {
+                AppMessageBox.Show("This particular is used in journal transactions and cannot be deleted.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var confirmation = AppMessageBox.Show("Delete the selected particular?", "Delete Particular", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (confirmation != DialogResult.Yes)
             {
                 return;
@@ -283,26 +288,26 @@ namespace RepairAndMaintenanceApp
             {
                 ParticularMasterService.Delete(selectedParticularId.Value);
                 LoadParticulars(searchBox.Text.Trim());
-                MessageBox.Show("Particular deleted.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppMessageBox.Show("Particular deleted.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception exception) when (exception.Message.Contains("FOREIGN KEY", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("This particular is used by ledger entries and cannot be deleted.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("This particular is used by ledger entries and cannot be deleted.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
         private bool ValidateEditor()
         {
-            if (categoryBox.SelectedValue == null)
+            if (categoryBox.SelectedValue == null || Convert.ToInt32(categoryBox.SelectedValue) <= 0)
             {
-                MessageBox.Show("Create or activate a category first.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("Please select a category.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 categoryBox.Focus();
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(particularNameBox.Text))
             {
-                MessageBox.Show("Enter a particular name.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppMessageBox.Show("Enter a particular name.", "Particular Master", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 particularNameBox.Focus();
                 return false;
             }

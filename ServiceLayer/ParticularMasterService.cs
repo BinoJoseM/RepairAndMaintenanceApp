@@ -16,6 +16,11 @@ namespace RepairAndMaintenanceApp.ServiceLayer
             return ParticularMasterDataAccess.GetActiveCategories();
         }
 
+        public static List<string> GetNamesByCategory(string categoryName)
+        {
+            return ParticularMasterDataAccess.GetNamesByCategory(categoryName);
+        }
+
         public static void Add(ParticularMaster particular)
         {
             ParticularMasterDataAccess.Add(particular);
@@ -24,6 +29,11 @@ namespace RepairAndMaintenanceApp.ServiceLayer
         public static void Update(ParticularMaster particular)
         {
             ParticularMasterDataAccess.Update(particular);
+        }
+
+        public static bool IsUsedInJournalTransactions(int id)
+        {
+            return ParticularMasterDataAccess.IsUsedInJournalTransactions(id);
         }
 
         public static void Delete(int id)

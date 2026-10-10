@@ -45,8 +45,8 @@ namespace RepairAndMaintenanceApp
             {
                 new { Text = "Journal", FormType = typeof(JournalForm) },
                 new { Text = "Bank Reconciliation Statement", FormType = typeof(BankReconciliationStatementForm) },
-                new { Text = "Ledger(Expenses)", FormType = typeof(LedgerExpensesForm) },
-                new { Text = "Ledger (Income)", FormType = typeof(LedgerIncomeForm) },
+                new { Text = "Ledger(Expenses)", FormType = typeof(RecordExpenseForm) },
+                new { Text = "Ledger (Income)", FormType = typeof(RecordIncomeForm) },
                 new { Text = "Category Master", FormType = typeof(CategoryMasterForm) },
                 new { Text = "Reports", FormType = typeof(ReportForm) },
                 new { Text = "BS", FormType = typeof(BalanceSheetForm) }

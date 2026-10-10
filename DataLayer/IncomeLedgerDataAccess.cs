@@ -16,7 +16,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
 
-            var sql = "SELECT e.Id, e.EntryDate, cm.CategoryName, pm.ParticularName, e.Amount, e.SourceFile, e.SourceCell FROM IncomeLedgerEntries e LEFT JOIN CategoryMaster cm ON cm.Id = e.CategoryId LEFT JOIN ParticularMaster pm ON pm.Id = e.ParticularId WHERE 1 = 1";
+            var sql = "SELECT e.Id, e.JournalId, e.EntryDate, cm.CategoryName, pm.ParticularName, e.Amount, e.SourceFile, e.SourceCell FROM IncomeLedgerEntries e LEFT JOIN CategoryMaster cm ON cm.Id = e.CategoryId LEFT JOIN ParticularMaster pm ON pm.Id = e.ParticularId WHERE 1 = 1";
             if (!string.IsNullOrWhiteSpace(category) && !string.Equals(category, "All categories", StringComparison.OrdinalIgnoreCase))
             {
                 sql += " AND cm.CategoryName = @categoryName";
@@ -48,12 +48,13 @@ namespace RepairAndMaintenanceApp.DataLayer
                 entries.Add(new IncomeLedgerEntries
                 {
                     Id = reader.GetInt32(0),
-                    EntryDate = reader.IsDBNull(1) ? null : DateTime.TryParse(reader.GetString(1), out var entryDate) ? entryDate : null,
-                    Category = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                    Particulars = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-                    Amount = reader.IsDBNull(4) ? 0m : Convert.ToDecimal(reader.GetValue(4)),
-                    SourceFile = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
-                    SourceCell = reader.IsDBNull(6) ? string.Empty : reader.GetString(6)
+                    JournalId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    EntryDate = reader.IsDBNull(2) ? null : DateTime.TryParse(reader.GetString(2), out var entryDate) ? entryDate : null,
+                    Category = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                    Particulars = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                    Amount = reader.IsDBNull(5) ? 0m : Convert.ToDecimal(reader.GetValue(5)),
+                    SourceFile = reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+                    SourceCell = reader.IsDBNull(7) ? string.Empty : reader.GetString(7)
                 });
             }
 
@@ -67,17 +68,107 @@ namespace RepairAndMaintenanceApp.DataLayer
                 return;
             }
 
+            SaveManualEntry(entry);
+        }
+
+        public static void SaveManualEntry(IncomeLedgerEntries entry)
+        {
+            ArgumentNullException.ThrowIfNull(entry);
+
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
-            var categoryId = GetOrCreateCategoryId(connection, entry.Category);
-            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars);
+            using var transaction = connection.BeginTransaction();
+            var categoryId = GetOrCreateCategoryId(connection, entry.Category, transaction);
+            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
+
+            var journalEntry = JournalTransactionDataAccess.AddFromLedger(
+                connection,
+                transaction,
+                entry.EntryDate,
+                categoryId,
+                particularId,
+                entry.Amount,
+                0m,
+                string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
+            entry.JournalId = journalEntry.JournalId;
+            entry.SourceCell = $"Manual-{journalEntry.JournalId}";
+
+            Add(entry, connection, transaction);
+            BalanceSheetDataAccess.SaveJournalEntry(
+                connection,
+                transaction,
+                journalEntry.JournalId,
+                entry.EntryDate,
+                entry.Particulars,
+                entry.Amount,
+                0m,
+                "Income",
+                journalEntry.SourceFile,
+                journalEntry.SourceRow);
+
+            transaction.Commit();
+        }
+
+        public static void UpdateManualEntry(IncomeLedgerEntries entry)
+        {
+            ArgumentNullException.ThrowIfNull(entry);
+            if (entry.Id <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(entry), "An existing income entry ID is required.");
+            }
+
+            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            var categoryId = GetOrCreateCategoryId(connection, entry.Category, transaction);
+            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
+
+            var journalEntry = entry.JournalId.HasValue
+                ? JournalTransactionDataAccess.UpdateFromLedger(connection, transaction, entry.JournalId.Value, entry.EntryDate, categoryId, particularId, entry.Amount, 0m)
+                : JournalTransactionDataAccess.AddFromLedger(
+                    connection,
+                    transaction,
+                    entry.EntryDate,
+                    categoryId,
+                    particularId,
+                    entry.Amount,
+                    0m,
+                    string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
+            entry.JournalId = journalEntry.JournalId;
+
+            if (Update(entry, connection, transaction) == 0)
+            {
+                throw new InvalidOperationException($"Income entry {entry.Id} was not found.");
+            }
+
+            BalanceSheetDataAccess.SaveJournalEntry(
+                connection,
+                transaction,
+                journalEntry.JournalId,
+                entry.EntryDate,
+                entry.Particulars,
+                entry.Amount,
+                0m,
+                "Income",
+                journalEntry.SourceFile,
+                journalEntry.SourceRow);
+
+            transaction.Commit();
+        }
+
+        private static void Add(IncomeLedgerEntries entry, SqliteConnection connection, SqliteTransaction? transaction)
+        {
+            var categoryId = GetOrCreateCategoryId(connection, entry.Category, transaction);
+            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
 
             using var command = connection.CreateCommand();
+            command.Transaction = transaction;
             command.CommandText = @"
-                INSERT INTO IncomeLedgerEntries (EntryDate, CategoryId, ParticularId, Amount, SourceFile, SourceCell)
-                VALUES (@entryDate, @categoryId, @particularId, @amount, @sourceFile, @sourceCell)
+                INSERT INTO IncomeLedgerEntries (JournalId, EntryDate, CategoryId, ParticularId, Amount, SourceFile, SourceCell)
+                VALUES (@journalId, @entryDate, @categoryId, @particularId, @amount, @sourceFile, @sourceCell)
             ";
 
+            command.Parameters.AddWithValue("@journalId", (object?)entry.JournalId ?? DBNull.Value);
             command.Parameters.AddWithValue("@entryDate", entry.EntryDate.HasValue ? entry.EntryDate.Value.ToString("yyyy-MM-dd") : DBNull.Value);
             command.Parameters.AddWithValue("@categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
@@ -94,15 +185,19 @@ namespace RepairAndMaintenanceApp.DataLayer
                 return;
             }
 
-            using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
-            connection.Open();
-            var categoryId = GetOrCreateCategoryId(connection, entry.Category);
-            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars);
+            UpdateManualEntry(entry);
+        }
 
+        private static int Update(IncomeLedgerEntries entry, SqliteConnection connection, SqliteTransaction? transaction)
+        {
+            var categoryId = GetOrCreateCategoryId(connection, entry.Category, transaction);
+            var particularId = GetOrCreateParticularId(connection, categoryId, entry.Particulars, transaction);
             using var command = connection.CreateCommand();
+            command.Transaction = transaction;
             command.CommandText = @"
                 UPDATE IncomeLedgerEntries
-                SET EntryDate = @entryDate,
+                SET JournalId = @journalId,
+                    EntryDate = @entryDate,
                     CategoryId = @categoryId,
                     ParticularId = @particularId,
                     Amount = @amount,
@@ -112,13 +207,14 @@ namespace RepairAndMaintenanceApp.DataLayer
             ";
 
             command.Parameters.AddWithValue("@id", entry.Id);
+            command.Parameters.AddWithValue("@journalId", (object?)entry.JournalId ?? DBNull.Value);
             command.Parameters.AddWithValue("@entryDate", entry.EntryDate.HasValue ? entry.EntryDate.Value.ToString("yyyy-MM-dd") : DBNull.Value);
             command.Parameters.AddWithValue("@categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("@particularId", (object?)particularId ?? DBNull.Value);
             command.Parameters.AddWithValue("@amount", entry.Amount);
             command.Parameters.AddWithValue("@sourceFile", string.IsNullOrWhiteSpace(entry.SourceFile) ? "Manual Entry" : entry.SourceFile);
             command.Parameters.AddWithValue("@sourceCell", string.IsNullOrWhiteSpace(entry.SourceCell) ? "Manual" : entry.SourceCell);
-            command.ExecuteNonQuery();
+            return command.ExecuteNonQuery();
         }
 
         public static void Delete(int id)
@@ -130,14 +226,48 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
+            using var transaction = connection.BeginTransaction();
 
-            using var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM IncomeLedgerEntries WHERE Id = @id";
-            command.Parameters.AddWithValue("@id", id);
-            command.ExecuteNonQuery();
+            long? journalId = null;
+            using (var lookup = connection.CreateCommand())
+            {
+                lookup.Transaction = transaction;
+                lookup.CommandText = "SELECT JournalId FROM IncomeLedgerEntries WHERE Id = @id";
+                lookup.Parameters.AddWithValue("@id", id);
+                var result = lookup.ExecuteScalar();
+                if (result != null && result != DBNull.Value)
+                {
+                    journalId = Convert.ToInt64(result);
+                }
+            }
+
+            using (var command = connection.CreateCommand())
+            {
+                command.Transaction = transaction;
+                command.CommandText = "DELETE FROM IncomeLedgerEntries WHERE Id = @id";
+                command.Parameters.AddWithValue("@id", id);
+                command.ExecuteNonQuery();
+            }
+
+            if (journalId.HasValue)
+            {
+                using var cleanup = connection.CreateCommand();
+                cleanup.Transaction = transaction;
+                cleanup.CommandText = @"
+                    DELETE FROM BalanceSheetItems WHERE JournalId = @journalId;
+                    DELETE FROM JournalTransactions
+                    WHERE Id = @journalId
+                      AND NOT EXISTS (SELECT 1 FROM ExpenseLedgerEntries WHERE JournalId = @journalId)
+                      AND NOT EXISTS (SELECT 1 FROM IncomeLedgerEntries WHERE JournalId = @journalId);
+                ";
+                cleanup.Parameters.AddWithValue("@journalId", journalId.Value);
+                cleanup.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
         }
 
-        private static long? GetOrCreateCategoryId(SqliteConnection connection, string categoryName)
+        private static long? GetOrCreateCategoryId(SqliteConnection connection, string categoryName, SqliteTransaction? transaction = null)
         {
             if (string.IsNullOrWhiteSpace(categoryName))
             {
@@ -146,18 +276,20 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             using (var insert = connection.CreateCommand())
             {
+                insert.Transaction = transaction;
                 insert.CommandText = "INSERT OR IGNORE INTO CategoryMaster (CategoryName, CategoryType, IsActive) VALUES (@categoryName, 'Income', 1)";
                 insert.Parameters.AddWithValue("@categoryName", categoryName.Trim());
                 insert.ExecuteNonQuery();
             }
 
             using var lookup = connection.CreateCommand();
+            lookup.Transaction = transaction;
             lookup.CommandText = "SELECT Id FROM CategoryMaster WHERE CategoryName = @categoryName";
             lookup.Parameters.AddWithValue("@categoryName", categoryName.Trim());
             return Convert.ToInt64(lookup.ExecuteScalar());
         }
 
-        private static long? GetOrCreateParticularId(SqliteConnection connection, long? categoryId, string particulars)
+        private static long? GetOrCreateParticularId(SqliteConnection connection, long? categoryId, string particulars, SqliteTransaction? transaction = null)
         {
             if (!categoryId.HasValue || string.IsNullOrWhiteSpace(particulars))
             {
@@ -166,6 +298,7 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             using (var insert = connection.CreateCommand())
             {
+                insert.Transaction = transaction;
                 insert.CommandText = "INSERT OR IGNORE INTO ParticularMaster (CategoryId, ParticularName) VALUES (@categoryId, @particularName)";
                 insert.Parameters.AddWithValue("@categoryId", categoryId.Value);
                 insert.Parameters.AddWithValue("@particularName", particulars.Trim());
@@ -173,6 +306,7 @@ namespace RepairAndMaintenanceApp.DataLayer
             }
 
             using var lookup = connection.CreateCommand();
+            lookup.Transaction = transaction;
             lookup.CommandText = "SELECT Id FROM ParticularMaster WHERE CategoryId = @categoryId AND ParticularName = @particularName";
             lookup.Parameters.AddWithValue("@categoryId", categoryId.Value);
             lookup.Parameters.AddWithValue("@particularName", particulars.Trim());

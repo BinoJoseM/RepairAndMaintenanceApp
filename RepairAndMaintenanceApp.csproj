@@ -11,7 +11,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.8" />
-    <None Update="RepairMaintenanceAccounting.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="RepairMaintenanceAccounting.db" CopyToOutputDirectory="PreserveNewest" Condition="'$(Configuration)' == 'Debug'" />
+    <None Update="RepairMaintenanceAccounting.db" CopyToPublishDirectory="Never" />
+    <None Update="Resources\white-Home.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
