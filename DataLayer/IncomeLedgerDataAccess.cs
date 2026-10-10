@@ -226,11 +226,45 @@ namespace RepairAndMaintenanceApp.DataLayer
 
             using var connection = new SqliteConnection($"Data Source={SqliteDataAccess.DatabasePath}");
             connection.Open();
+            using var transaction = connection.BeginTransaction();
 
-            using var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM IncomeLedgerEntries WHERE Id = @id";
-            command.Parameters.AddWithValue("@id", id);
-            command.ExecuteNonQuery();
+            long? journalId = null;
+            using (var lookup = connection.CreateCommand())
+            {
+                lookup.Transaction = transaction;
+                lookup.CommandText = "SELECT JournalId FROM IncomeLedgerEntries WHERE Id = @id";
+                lookup.Parameters.AddWithValue("@id", id);
+                var result = lookup.ExecuteScalar();
+                if (result != null && result != DBNull.Value)
+                {
+                    journalId = Convert.ToInt64(result);
+                }
+            }
+
+            using (var command = connection.CreateCommand())
+            {
+                command.Transaction = transaction;
+                command.CommandText = "DELETE FROM IncomeLedgerEntries WHERE Id = @id";
+                command.Parameters.AddWithValue("@id", id);
+                command.ExecuteNonQuery();
+            }
+
+            if (journalId.HasValue)
+            {
+                using var cleanup = connection.CreateCommand();
+                cleanup.Transaction = transaction;
+                cleanup.CommandText = @"
+                    DELETE FROM BalanceSheetItems WHERE JournalId = @journalId;
+                    DELETE FROM JournalTransactions
+                    WHERE Id = @journalId
+                      AND NOT EXISTS (SELECT 1 FROM ExpenseLedgerEntries WHERE JournalId = @journalId)
+                      AND NOT EXISTS (SELECT 1 FROM IncomeLedgerEntries WHERE JournalId = @journalId);
+                ";
+                cleanup.Parameters.AddWithValue("@journalId", journalId.Value);
+                cleanup.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
         }
 
         private static long? GetOrCreateCategoryId(SqliteConnection connection, string categoryName, SqliteTransaction? transaction = null)

@@ -19,7 +19,8 @@ namespace RepairAndMaintenanceApp
             Height = 820;
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(244, 246, 249);
-            MinimumSize = new Size(980, 760);
+            AutoScroll = true;
+            AutoScrollMinSize = new Size(940, 480);
             FormBorderStyle = FormBorderStyle.None;
             TopLevel = false;
             Dock = DockStyle.Fill;
@@ -94,7 +95,7 @@ namespace RepairAndMaintenanceApp
             var grid = new DataGridView
             {
                 Location = new Point(24, 134),
-                Size = new Size(900, 438),
+                Size = new Size(900, 340),
                 ReadOnly = true,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
@@ -114,7 +115,7 @@ namespace RepairAndMaintenanceApp
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing,
                 ColumnHeadersHeight = 36,
                 RowTemplate = { Height = 34 },
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
 
             grid.DefaultCellStyle = new DataGridViewCellStyle
@@ -185,7 +186,7 @@ namespace RepairAndMaintenanceApp
                 BackColor = Color.White,
                 BorderStyle = BorderStyle.None,
                 Padding = new Padding(12),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
 
             var editorTitle = new Label
@@ -209,7 +210,7 @@ namespace RepairAndMaintenanceApp
                 BackColor = Color.White,
                 Font = new Font("Segoe UI", 10F)
             };
-            var categoryBox = CreateDropDown(205, 56, 210, SqliteDataAccess.GetCategoryNames("Income").ToArray());
+            var categoryBox = CreateDropDown(205, 56, 210, SqliteDataAccess.GetCategoryNames("Income").Prepend("Select").ToArray());
             var particularsBox = CreateEditorDropDown(435, 56, 280);
             var amountBox = CreateEditorTextBox(745, 56, 120);
 
@@ -217,12 +218,20 @@ namespace RepairAndMaintenanceApp
             {
                 var category = categoryBox.SelectedItem?.ToString();
                 particularsBox.Items.Clear();
-                if (!string.IsNullOrWhiteSpace(category))
+                particularsBox.Items.Add("Select");
+                if (!string.IsNullOrWhiteSpace(category) && categoryBox.SelectedIndex > 0)
                 {
                     particularsBox.Items.AddRange(ParticularMasterService.GetNamesByCategory(category).Cast<object>().ToArray());
                 }
 
-                particularsBox.SelectedItem = selectedParticular;
+                if (!string.IsNullOrWhiteSpace(selectedParticular))
+                {
+                    particularsBox.SelectedItem = selectedParticular;
+                }
+                else
+                {
+                    particularsBox.SelectedIndex = 0;
+                }
             }
 
             bool TryEnsureParticularExists()
@@ -317,7 +326,7 @@ namespace RepairAndMaintenanceApp
 
             bool TryValidateEditor()
             {
-                if (categoryBox.SelectedIndex < 0 || string.IsNullOrWhiteSpace(particularsBox.Text) || string.IsNullOrWhiteSpace(amountBox.Text))
+                if (categoryBox.SelectedIndex <= 0 || string.IsNullOrWhiteSpace(particularsBox.Text) || string.Equals(particularsBox.Text.Trim(), "Select", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(amountBox.Text))
                 {
                     AppMessageBox.Show("Select a category and particular, then enter the amount.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
@@ -338,7 +347,7 @@ namespace RepairAndMaintenanceApp
                 grid.ClearSelection();
                 dateBox.Value = DateTime.Today;
                 categoryBox.SelectedIndex = 0;
-                particularsBox.SelectedIndex = -1;
+                particularsBox.SelectedIndex = 0;
                 amountBox.Clear();
                 particularsBox.Focus();
             };
@@ -362,7 +371,7 @@ namespace RepairAndMaintenanceApp
                 };
 
                 IncomeService.SaveManualEntry(entry);
-                LoadGridData();
+                RefreshGrid();
                 AppMessageBox.Show("Income record saved.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
@@ -399,7 +408,7 @@ namespace RepairAndMaintenanceApp
                 };
 
                 IncomeService.UpdateManualEntry(updatedEntry);
-                LoadGridData();
+                RefreshGrid();
                 AppMessageBox.Show("Income record updated.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
@@ -420,7 +429,8 @@ namespace RepairAndMaintenanceApp
                 if (confirmation == DialogResult.Yes)
                 {
                     IncomeService.Delete(selectedRowId.Value);
-                    LoadGridData();
+                    RefreshGrid();
+                    addNewButton.PerformClick();
                     AppMessageBox.Show("Income record deleted.", "Income Data", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
@@ -442,6 +452,21 @@ namespace RepairAndMaintenanceApp
                         item.Amount.ToString("C2", CultureInfo.GetCultureInfo("en-US")));
 
                     grid.Rows[rowIndex].Tag = item.Id;
+                }
+
+                grid.ClearSelection();
+                grid.CurrentCell = null;
+            }
+
+            void RefreshGrid()
+            {
+                if (monthAndDateBox.Checked || categoriesBox.SelectedIndex > 0)
+                {
+                    ApplySearch();
+                }
+                else
+                {
+                    LoadGridData();
                 }
             }
 
@@ -483,11 +508,15 @@ namespace RepairAndMaintenanceApp
                 searchPanel.Width = width;
                 grid.Width = width;
                 editorPanel.Width = width;
+                grid.Height = Math.Max(160, ClientSize.Height - grid.Top - editorPanel.Height - 24 - 100);
+                editorPanel.Top = grid.Bottom + 12;
             };
+
+            Load += (_, _) => PerformLayout();
 
             dateBox.Value = DateTime.Today;
             categoryBox.SelectedIndex = 0;
-            particularsBox.SelectedIndex = -1;
+            particularsBox.SelectedIndex = 0;
             amountBox.Clear();
         }
 

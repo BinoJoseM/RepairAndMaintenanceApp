@@ -552,7 +552,9 @@ namespace RepairAndMaintenanceApp
                 RowCount = 6,
                 BackColor = Color.FromArgb(244, 246, 249),
                 Margin = Padding.Empty,
-                Padding = Padding.Empty
+                Padding = Padding.Empty,
+                AutoScroll = true,
+                AutoScrollMinSize = new Size(0, 670)
             };
             dashboardLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             dashboardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));

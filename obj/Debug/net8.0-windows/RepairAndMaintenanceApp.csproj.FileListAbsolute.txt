@@ -221,3 +221,9 @@ C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.deps.json
 C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.runtimeconfig.json
 C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.dll
 C:\Users\binom\AppData\Local\Temp\chk\RepairAndMaintenanceApp.pdb
+C:\Users\binom\AppData\Local\Temp\chk2\Resources\white-Home.png
+C:\Users\binom\AppData\Local\Temp\chk2\RepairAndMaintenanceApp.exe
+C:\Users\binom\AppData\Local\Temp\chk2\RepairAndMaintenanceApp.deps.json
+C:\Users\binom\AppData\Local\Temp\chk2\RepairAndMaintenanceApp.runtimeconfig.json
+C:\Users\binom\AppData\Local\Temp\chk2\RepairAndMaintenanceApp.dll
+C:\Users\binom\AppData\Local\Temp\chk2\RepairAndMaintenanceApp.pdb
