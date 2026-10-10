@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RepairAndMaintenanceApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b9dce3ce3b850b13fce974299f0cdeb444de206a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+66cb31671972d48036ebd1441fff982649152bcf")]
 [assembly: System.Reflection.AssemblyProductAttribute("RepairAndMaintenanceApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RepairAndMaintenanceApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

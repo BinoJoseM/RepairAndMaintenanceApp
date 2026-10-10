@@ -144,6 +144,7 @@ namespace RepairAndMaintenanceApp
 
             grid.Columns.Add("Date", "Date");
             grid.Columns.Add("JournalId", "Journal ID");
+            grid.Columns["JournalId"].Visible = false;
             grid.Columns.Add("Category", "Category");
             grid.Columns.Add("Particulars", "Particulars");
             grid.Columns.Add("Amount", "Amount");

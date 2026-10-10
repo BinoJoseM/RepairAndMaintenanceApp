@@ -7,11 +7,31 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using RepairAndMaintenanceApp.DataLayer;
+using RepairAndMaintenanceApp.ServiceLayer;
 
 namespace RepairAndMaintenanceApp
 {
     public class DashboardForm : Form
     {
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            if (BackupSettingsService.IsBackupOverdue())
+            {
+                AppMessageBox.Show(
+                    $"Your database has not been backed up in the last {BackupSettingsService.ReminderDays} days.\n\nOpen Settings to back it up now.",
+                    "Backup Reminder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            if (!e.Cancel)
+            {
+                BackupSettingsService.RunAutoBackupIfEnabled();
+            }
+        }
         public DashboardForm()
         {
             Text = "Dashboard";
@@ -159,6 +179,7 @@ namespace RepairAndMaintenanceApp
 
             Panel content = null!;
             TableLayoutPanel dashboardLayout = null!;
+            Action refreshDashboard = null!;
 
             var navItems = new[]
             {
@@ -210,6 +231,7 @@ namespace RepairAndMaintenanceApp
 
                     if (item.FormType == typeof(DashboardForm))
                     {
+                        refreshDashboard();
                         ShowContentArea(content, dashboardLayout);
                         return;
                     }
@@ -320,6 +342,9 @@ namespace RepairAndMaintenanceApp
             // messagePanel.Controls.Add(overviewButton);
             // messagePanel.Controls.Add(deskIllustration);
 
+            refreshDashboard = () =>
+            {
+            var previousLayout = dashboardLayout;
             var statsLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
@@ -445,6 +470,7 @@ namespace RepairAndMaintenanceApp
             var monthSelectorTitle = new Label
             {
                 Text = "Monthly Income & Expenses",
+                UseMnemonic = false,
                 Dock = DockStyle.Top,
                 Height = 24,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -539,6 +565,9 @@ namespace RepairAndMaintenanceApp
             dashboardLayout.Controls.Add(statsLayout, 0, 1);
             dashboardLayout.Controls.Add(bottomRow, 0, 3);
             dashboardLayout.Controls.Add(monthSelector, 0, 4);
+            previousLayout?.Dispose();
+            };
+            refreshDashboard();
             content.Controls.Add(dashboardLayout);
 
             root.Controls.Add(content);

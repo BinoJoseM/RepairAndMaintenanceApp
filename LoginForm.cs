@@ -40,6 +40,7 @@ namespace RepairAndMaintenanceApp
             var headerTitle = new Label
             {
                 Text = "Repair & Maintenance App",
+                UseMnemonic = false,
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 16F, FontStyle.Bold),
                 AutoSize = true,
